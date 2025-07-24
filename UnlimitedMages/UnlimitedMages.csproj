@@ -1,0 +1,49 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>netstandard2.1</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>default</LangVersion>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Reference Include="0Harmony">
+            <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Mage Arena\BepInEx\core\0Harmony.dll</HintPath>
+        </Reference>
+        <Reference Include="Assembly-CSharp">
+            <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Mage Arena\MageArena_Data\Managed\Assembly-CSharp.dll</HintPath>
+        </Reference>
+        <Reference Include="BepInEx">
+            <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Mage Arena\BepInEx\core\BepInEx.dll</HintPath>
+        </Reference>
+        <Reference Include="com.rlabrecque.steamworks.net">
+            <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Mage Arena\MageArena_Data\Managed\com.rlabrecque.steamworks.net.dll</HintPath>
+        </Reference>
+        <Reference Include="DissonanceVoip">
+            <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Mage Arena\MageArena_Data\Managed\DissonanceVoip.dll</HintPath>
+        </Reference>
+        <Reference Include="DissonanceVoip.FishNet">
+            <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Mage Arena\MageArena_Data\Managed\DissonanceVoip.FishNet.dll</HintPath>
+        </Reference>
+        <Reference Include="FishNet.Runtime">
+            <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Mage Arena\MageArena_Data\Managed\FishNet.Runtime.dll</HintPath>
+        </Reference>
+        <Reference Include="UnityEngine">
+            <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Mage Arena\MageArena_Data\Managed\UnityEngine.dll</HintPath>
+        </Reference>
+        <Reference Include="UnityEngine.CoreModule">
+            <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Mage Arena\MageArena_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+        </Reference>
+        <Reference Include="UnityEngine.UI">
+          <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Mage Arena\MageArena_Data\Managed\UnityEngine.UI.dll</HintPath>
+        </Reference>
+    </ItemGroup>
+
+    <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+        <Deterministic>true</Deterministic>
+        <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+        <PathMap>$(MSBuildThisFileDirectory)=/src/</PathMap>
+    </PropertyGroup>
+    
+</Project>
