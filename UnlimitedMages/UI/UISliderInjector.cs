@@ -48,15 +48,16 @@ public class UISliderInjector : MonoBehaviour, IModComponent
     ///     The currently selected team size. This value is used by patches when creating a lobby
     ///     and is broadcast to other players by the NetworkedConfigManager.
     /// </summary>
-    public static int SelectedTeamSize { get; private set; } = GameConstants.Game.OriginalTeamSize;
+    public static int SelectedTeamSize { get; private set; } = GameConstants.Game.MinimumTeamSize;
 
     private void Update()
     {
-        if (!_isReady || _teamSizeSlider is not null) return;
+        // Use the Unity-safe null-check (the overloaded != operator)
+        if (!_isReady || _teamSizeSlider != null) return;
 
         // Find the target panel only when it's active to inject the slider.
         var panelObject = GameObject.Find(TargetPanelName);
-        if (panelObject is not null && panelObject.activeInHierarchy) AddSliderToPanel(panelObject.transform);
+        if (panelObject != null && panelObject.activeInHierarchy) AddSliderToPanel(panelObject.transform);
     }
 
     private void OnDestroy()
@@ -155,7 +156,7 @@ public class UISliderInjector : MonoBehaviour, IModComponent
 
         // --- Configure Slider Logic ---
         _teamSizeSlider.direction = Slider.Direction.LeftToRight;
-        _teamSizeSlider.minValue = GameConstants.Game.OriginalTeamSize;
+        _teamSizeSlider.minValue = GameConstants.Game.MinimumTeamSize;
         _teamSizeSlider.maxValue = GameConstants.Game.MaxTeamSize;
         _teamSizeSlider.wholeNumbers = true;
         _teamSizeSlider.value = SelectedTeamSize;
@@ -171,20 +172,20 @@ public class UISliderInjector : MonoBehaviour, IModComponent
         SelectedTeamSize = intValue;
 
         // If we are the host, broadcast this change to all clients.
-        if (NetworkedConfigManager.Instance is not null)
+        if (NetworkedConfigManager.Instance != null)
             NetworkedConfigManager.Instance.SetAndBroadcastTeamSize(intValue);
     }
 
     private void UpdateSliderDisplay(int value)
     {
-        if (_sliderLabel is not null)
+        if (_sliderLabel != null)
             _sliderLabel.text = $"Team Size: {value} vs {value}";
     }
 
     private void UpdateSliderFromNetwork(int value)
     {
         // Do not update the slider value if the user is currently dragging it.
-        if (_sliderLabel is null || _teamSizeSlider is null || (_sliderHelper is not null && _sliderHelper.IsBeingDragged)) return;
+        if (_sliderLabel == null || _teamSizeSlider == null || (_sliderHelper != null && _sliderHelper.IsBeingDragged)) return;
 
         UpdateSliderDisplay(value);
         _teamSizeSlider.SetValueWithoutNotify(value);

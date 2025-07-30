@@ -31,7 +31,7 @@ public class NetworkedConfigManager : MonoBehaviour, IModComponent
 
     private void Update()
     {
-        if (_networkStartedAndHandled || _comms is null || !_comms.IsNetworkInitialized) return;
+        if (_networkStartedAndHandled || _comms == null || !_comms.IsNetworkInitialized) return;
         _networkStartedAndHandled = true;
 
         if (IsHost())
@@ -73,10 +73,10 @@ public class NetworkedConfigManager : MonoBehaviour, IModComponent
     private IEnumerator FindDissonance()
     {
         UnlimitedMagesPlugin.Log?.LogInfo("Searching for DissonanceComms...");
-        while (_comms is null)
+        while (_comms == null)
         {
             _comms = FindFirstObjectByType<DissonanceComms>();
-            if (_comms is null)
+            if (_comms == null)
                 yield return new WaitForSeconds(1f);
         }
 
@@ -110,7 +110,7 @@ public class NetworkedConfigManager : MonoBehaviour, IModComponent
 
     private void RequestConfigFromHost()
     {
-        if (_comms is null || !_comms.IsNetworkInitialized) return;
+        if (_comms == null || !_comms.IsNetworkInitialized) return;
 
         UnlimitedMagesPlugin.Log?.LogInfo("[Client] Requesting config from host...");
         _comms.Text.Send("Global", "[UNLIMITED_MAGES]REQUEST_CONFIG");
@@ -129,7 +129,7 @@ public class NetworkedConfigManager : MonoBehaviour, IModComponent
             OnTeamSizeChanged?.Invoke(newSize);
         }
 
-        if (_comms is null || !_comms.IsNetworkInitialized || !IsHost()) return;
+        if (_comms == null || !_comms.IsNetworkInitialized || !IsHost()) return;
 
         var msg = $"[UNLIMITED_MAGES]SET_TEAM_SIZE:{newSize}";
         _comms.Text.Send("Global", msg);

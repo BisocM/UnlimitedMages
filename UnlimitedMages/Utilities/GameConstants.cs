@@ -14,7 +14,7 @@ public static class GameConstants
         /// <summary>
         ///     The original hardcoded size of each team. Used as a baseline for UI calculations and logic patches.
         /// </summary>
-        public const int OriginalTeamSize = 1;
+        public const int OriginalTeamSize = 4;
 
         /// <summary>
         ///     The number of teams in a standard match.
@@ -25,6 +25,11 @@ public static class GameConstants
         ///     A hard upper limit, just in case.
         /// </summary>
         public const int MaxTeamSize = 128;
+
+        /// <summary>
+        ///     The absolute minimum size a team can be. Used for the UI slider.
+        /// </summary>
+        public const int MinimumTeamSize = 1;
     }
 
     /// <summary>

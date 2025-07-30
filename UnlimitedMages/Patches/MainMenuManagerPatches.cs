@@ -39,7 +39,7 @@ public static class MainMenuManagerPatches
     private static void OnTeamSizeUpdated(int teamSize)
     {
         var instance = Object.FindFirstObjectByType<MainMenuManager>();
-        if (instance is null || _isUiResized) return;
+        if (instance ==null || _isUiResized) return;
 
         UnlimitedMagesPlugin.Log?.LogInfo($"Received team size {teamSize}. Resizing lobby UI elements...");
 
@@ -78,7 +78,7 @@ public static class MainMenuManagerPatches
             Array.Copy(array, newArray, originalLength);
             var template = array[0];
             var parent = template.transform.parent;
-            if (parent is null) return;
+            if (parent == null) return;
 
             for (var i = originalLength; i < newSize; i++)
             {
@@ -129,7 +129,7 @@ public static class MainMenuManagerPatches
             Array.Copy(array, newArray, originalLength);
             var template = array[0];
             var parent = template.transform.parent;
-            if (parent is null) return;
+            if (parent == null) return;
             var horizontalOffset = array.Length > 1 ? array[1].transform.position - array[0].transform.position : Vector3.zero;
             var verticalOffset = new Vector3(0, horizontalOffset.magnitude * 2.5f, 0);
 
