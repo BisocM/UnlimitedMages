@@ -1,171 +1,140 @@
 ﻿using System.Collections;
+using System.Collections.Generic;
 using System.Reflection.Emit;
-using BepInEx.Configuration;
-using Dissonance;
-using Dissonance.Integrations.FishNet;
 using FishNet.Managing;
 using HarmonyLib;
 using Steamworks;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnlimitedMages.System;
+using UnlimitedMages.UI;
 using UnlimitedMages.Utilities;
 using Object = UnityEngine.Object;
 
-namespace UnlimitedMages.Patches
+namespace UnlimitedMages.Patches;
+
+/// <summary>
+///     Contains Harmony patches for the <see cref="BootstrapManager" /> class.
+/// </summary>
+[HarmonyPatch(typeof(BootstrapManager))]
+public static class BootstrapManagerPatches
 {
     /// <summary>
-    /// Contains Harmony patches for the <see cref="BootstrapManager"/> class.
-    /// These patches are critical for adjusting lobby size limits and ensuring stable network cleanup.
+    ///     This transpiler helper now gets the NetworkedConfigManager via its own static singleton instance.
+    ///     It works for both static and instance methods of the patched class.
     /// </summary>
-   
-    public static class BootstrapManagerPatches
+    private static IEnumerable<CodeInstruction> TranspileGetTeamSize(IEnumerable<CodeInstruction> instructions, bool multiplyByTeams)
     {
-        /// <summary>
-        /// Transpiles the CreateLobby method to replace the hardcoded lobby size with a dynamic value.
-        /// </summary>
-        /// <param name="instructions">The original IL instructions.</param>
-        /// <returns>The modified IL instructions.</returns>
-       
-       
-        public static IEnumerable<CodeInstruction> CreateLobby_Transpiler(IEnumerable<CodeInstruction> instructions)
-        {
-            var newInstructions = new List<CodeInstruction>(instructions);
-            for (int i = 0; i < newInstructions.Count; i++)
-            {
-                // Target: ldc.i4.8 (loading the integer constant 8)
-                if (newInstructions[i].opcode!= OpCodes.Ldc_I4_8) continue;
+        var newInstructions = new List<CodeInstruction>(instructions);
+        var targetOpcode = multiplyByTeams ? OpCodes.Ldc_I4_8 : OpCodes.Ldc_I4_4;
 
-                // Replace '8' with '(TeamSizeConfig.Value * NumTeams)'
-                newInstructions[i] = new CodeInstruction(OpCodes.Ldsfld, AccessTools.Field(typeof(UnlimitedMagesPlugin), nameof(UnlimitedMagesPlugin.TeamSizeConfig)));
-                newInstructions.Insert(i + 1, new CodeInstruction(OpCodes.Callvirt, AccessTools.PropertyGetter(typeof(ConfigEntry<int>), "Value")));
-                newInstructions.Insert(i + 2, new CodeInstruction(OpCodes.Ldc_I4, GameConstants.Game.NumTeams));
-                newInstructions.Insert(i + 3, new CodeInstruction(OpCodes.Mul));
-            }
-            return newInstructions;
+        var getSelectedTeamSize = AccessTools.PropertyGetter(typeof(UISliderInjector), nameof(UISliderInjector.SelectedTeamSize));
+
+        for (var i = 0; i < newInstructions.Count; i++)
+        {
+            if (newInstructions[i].opcode != targetOpcode) continue;
+
+            // Replace the hardcoded number with a call to the static property.
+            newInstructions[i] = new CodeInstruction(OpCodes.Call, getSelectedTeamSize);
+
+            if (!multiplyByTeams) continue;
+            
+            newInstructions.Insert(i + 1, new CodeInstruction(OpCodes.Ldc_I4, GameConstants.Game.NumTeams));
+            newInstructions.Insert(i + 2, new CodeInstruction(OpCodes.Mul));
         }
 
-        /// <summary>
-        /// Transpiles the OnGetLobbyList method to adjust lobby size filtering logic.
-        /// </summary>
-        /// <param name="instructions">The original IL instructions.</param>
-        /// <returns>The modified IL instructions.</returns>
-       
-       
-        public static IEnumerable<CodeInstruction> OnGetLobbyList_Transpiler(IEnumerable<CodeInstruction> instructions)
-        {
-            var newInstructions = new List<CodeInstruction>(instructions);
-            for (int i = 0; i < newInstructions.Count; i++)
-            {
-                // Target: ldc.i4.8 (loading the integer constant 8)
-                if (newInstructions[i].opcode!= OpCodes.Ldc_I4_8) continue;
+        return newInstructions;
+    }
 
-                // Replace '8' with '(TeamSizeConfig.Value * NumTeams)'
-                newInstructions[i] = new CodeInstruction(OpCodes.Ldsfld, AccessTools.Field(typeof(UnlimitedMagesPlugin), nameof(UnlimitedMagesPlugin.TeamSizeConfig)));
-                newInstructions.Insert(i + 1, new CodeInstruction(OpCodes.Callvirt, AccessTools.PropertyGetter(typeof(ConfigEntry<int>), "Value")));
-                newInstructions.Insert(i + 2, new CodeInstruction(OpCodes.Ldc_I4, GameConstants.Game.NumTeams));
-                newInstructions.Insert(i + 3, new CodeInstruction(OpCodes.Mul));
-            }
-            return newInstructions;
+    [HarmonyPatch(nameof(BootstrapManager.CreateLobby), typeof(bool))]
+    [HarmonyTranspiler]
+    public static IEnumerable<CodeInstruction> CreateLobby_Transpiler(IEnumerable<CodeInstruction> instructions) =>
+        TranspileGetTeamSize(instructions, true);
+
+    [HarmonyPatch(GameConstants.BootstrapManager.OnGetLobbyListMethod)]
+    [HarmonyTranspiler]
+    public static IEnumerable<CodeInstruction> OnGetLobbyList_Transpiler(IEnumerable<CodeInstruction> instructions) =>
+        TranspileGetTeamSize(instructions, true);
+
+    [HarmonyPatch(GameConstants.BootstrapManager.OnLobbyEnteredMethod)]
+    [HarmonyTranspiler]
+    public static IEnumerable<CodeInstruction> OnLobbyEntered_Transpiler(IEnumerable<CodeInstruction> instructions) =>
+        TranspileGetTeamSize(instructions, true);
+
+    /// <summary>
+    ///     Prefixes the original scene change coroutine to run our custom cleanup logic instead.
+    ///     This ensures all network connections (FishNet, Steamworks) are properly terminated.
+    /// </summary>
+    /// <returns>Returns false to skip the original method entirely.</returns>
+    [HarmonyPatch(GameConstants.BootstrapManager.ChangeSceneAfterCleanupMethod, typeof(string))]
+    [HarmonyPrefix]
+    public static bool ChangeSceneAfterCleanup_Prefix(string sceneName, ref IEnumerator __result)
+    {
+        __result = CustomChangeSceneAfterCleanup(sceneName);
+        return false;
+    }
+
+    /// <summary>
+    ///     A custom implementation of the game's scene cleanup logic. It correctly finds and
+    ///     shuts down networking managers before loading the main menu scene.
+    /// </summary>
+    private static IEnumerator CustomChangeSceneAfterCleanup(string sceneName)
+    {
+        var networkManager = Object.FindFirstObjectByType<NetworkManager>();
+        var fishySteamworks = Object.FindFirstObjectByType<FishySteamworks.FishySteamworks>();
+
+        if (BootstrapManager.CurrentLobbyID != 0uL)
+        {
+            SteamMatchmaking.LeaveLobby(new CSteamID(BootstrapManager.CurrentLobbyID));
+            BootstrapManager.CurrentLobbyID = 0uL;
         }
 
-        /// <summary>
-        /// Transpiles the OnLobbyEntered method to replace the hardcoded team size check.
-        /// </summary>
-        /// <param name="instructions">The original IL instructions.</param>
-        /// <returns>The modified IL instructions.</returns>
-       
-       
-        public static IEnumerable<CodeInstruction> OnLobbyEntered_Transpiler(IEnumerable<CodeInstruction> instructions)
+        if (networkManager != null)
         {
-            var newInstructions = new List<CodeInstruction>(instructions);
-            for (int i = 0; i < newInstructions.Count; i++)
-            {
-                // Target: ldc.i4.4 (loading the integer constant 4, the original team size)
-                if (newInstructions[i].opcode!= OpCodes.Ldc_I4_4) continue;
-
-                // Replace '4' with 'TeamSizeConfig.Value'
-                newInstructions[i] = new CodeInstruction(OpCodes.Ldsfld, AccessTools.Field(typeof(UnlimitedMagesPlugin), nameof(UnlimitedMagesPlugin.TeamSizeConfig)));
-                newInstructions.Insert(i + 1, new CodeInstruction(OpCodes.Callvirt, AccessTools.PropertyGetter(typeof(ConfigEntry<int>), "Value")));
-            }
-            return newInstructions;
+            if (networkManager.ServerManager.Started) networkManager.ServerManager.StopConnection(true);
+            if (networkManager.ClientManager.Started) networkManager.ClientManager.StopConnection();
         }
 
-        /// <summary>
-        /// Prefixes the ChangeSceneAfterCleanup coroutine to replace it entirely.
-        /// The original method is not robust enough for larger player counts, leading to instability when leaving lobbies.
-        /// This custom implementation ensures all network and voice systems are shut down in the correct order.
-        /// </summary>
-        /// <param name="sceneName">The name of the scene to load after cleanup.</param>
-        /// <param name="__result">The return value of the original method, which we replace with our custom coroutine.</param>
-        /// <returns>Returns false to prevent the original method from executing.</returns>
-       
-        [HarmonyPrefix]
-        public static bool ChangeSceneAfterCleanup_Prefix(string sceneName, ref IEnumerator __result)
+        if (fishySteamworks != null)
         {
-            __result = CustomChangeSceneAfterCleanup(sceneName);
-            return false;
+            fishySteamworks.StopConnection(false);
+            fishySteamworks.StopConnection(true);
         }
 
-        /// <summary>
-        /// A custom, robust implementation of the network cleanup and scene change logic.
-        /// </summary>
-        private static IEnumerator CustomChangeSceneAfterCleanup(string sceneName)
-        {
-            var networkManager = Object.FindFirstObjectByType<NetworkManager>();
-            var fishySteamworks = Object.FindFirstObjectByType<FishySteamworks.FishySteamworks>();
-            var dissonanceComms = Object.FindFirstObjectByType<DissonanceFishNetComms>();
+        yield return new WaitForSeconds(0.5f);
 
-            // Leave the Steam Lobby first.
-            if (BootstrapManager.CurrentLobbyID != 0uL)
-            {
-                SteamMatchmaking.LeaveLobby(new CSteamID(BootstrapManager.CurrentLobbyID));
-                BootstrapManager.CurrentLobbyID = 0uL;
-            }
+        GameObject[] playbackPrefabs = GameObject.FindGameObjectsWithTag("playbackprefab");
+        foreach (var prefab in playbackPrefabs) Object.Destroy(prefab);
 
-            // Stop the core FishNet networking. This allows "player left" messages to be sent.
-            if (networkManager != null)
-            {
-                if (networkManager.ServerManager.Started)
-                {
-                    networkManager.ServerManager.StopConnection(true);
-                }
-                if (networkManager.ClientManager.Started)
-                {
-                    networkManager.ClientManager.StopConnection();
-                }
-            }
+        yield return null;
 
-            // Stop the underlying transport.
-            if (fishySteamworks != null)
-            {
-                fishySteamworks.StopConnection(false);
-                fishySteamworks.StopConnection(true);
-            }
+        SceneManager.LoadScene(sceneName);
+        
+        if (BootstrapManager.instance == null) yield break;
 
-            // Wait for network messages to process.
-            yield return new WaitForSeconds(0.5f);
+        BootstrapManager.instance.GoToMenu();
+        AccessTools.Field(typeof(BootstrapManager), "hasLeaveGameFinished").SetValue(BootstrapManager.instance, true);
+    }
+}
 
-            // Now that the network is down, safely stop Dissonance.
-            if (dissonanceComms != null)
-                dissonanceComms.stopit();
-    
-            var dissonanceRoot = Object.FindFirstObjectByType<DissonanceComms>();
-            if (dissonanceRoot != null)
-                Object.Destroy(dissonanceRoot.gameObject);
+/// <summary>
+///     This patch targets the Awake method of BootstrapManager to fire a one-time event,
+///     signaling that the game's core systems are ready for mod components to be injected.
+/// </summary>
+[HarmonyPatch(typeof(BootstrapManager), "Awake")]
+public static class BootstrapManager_InjectionPatch
+{
+    private static bool _eventFired;
 
-            // Clean up any other objects.
-            GameObject[] playbackPrefabs = GameObject.FindGameObjectsWithTag("playbackprefab");
-            foreach (var prefab in playbackPrefabs)
-                Object.Destroy(prefab);
-
-            yield return null;
-
-            // Load the next scene.
-            SceneManager.LoadScene(sceneName);
-
-            if (BootstrapManager.instance == null) yield break;
-            BootstrapManager.instance.GoToMenu();
-            AccessTools.Field(typeof(BootstrapManager), "hasLeaveGameFinished").SetValue(BootstrapManager.instance, true);
-        }
+    /// <summary>
+    ///     After the BootstrapManager's Awake method runs, this invokes the OnBootstrapReady event.
+    ///     A flag ensures this only happens once per game launch.
+    /// </summary>
+    [HarmonyPostfix]
+    public static void Postfix()
+    {
+        if (_eventFired) return;
+        ModLifecycleEvents.InvokeBootstrapReady();
+        _eventFired = true;
     }
 }

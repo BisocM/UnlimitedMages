@@ -4,7 +4,7 @@
         <MageArenaPath>C:\Program Files (x86)\Steam\steamapps\common\Mage Arena</MageArenaPath>
 
         <TargetFramework>netstandard2.1</TargetFramework>
-        <ImplicitUsings>enable</ImplicitUsings>
+        <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <LangVersion>default</LangVersion>
     </PropertyGroup>
@@ -31,14 +31,23 @@
         <Reference Include="FishNet.Runtime">
             <HintPath>$(MageArenaPath)\MageArena_Data\Managed\FishNet.Runtime.dll</HintPath>
         </Reference>
+        <Reference Include="Unity.TextMeshPro">
+            <HintPath>$(MageArenaPath)\MageArena_Data\Managed\Unity.TextMeshPro.dll</HintPath>
+        </Reference>
         <Reference Include="UnityEngine">
             <HintPath>$(MageArenaPath)\MageArena_Data\Managed\UnityEngine.dll</HintPath>
         </Reference>
         <Reference Include="UnityEngine.CoreModule">
             <HintPath>$(MageArenaPath)\MageArena_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
         </Reference>
+        <Reference Include="UnityEngine.InputLegacyModule">
+            <HintPath>$(MageArenaPath)\MageArena_Data\Managed\UnityEngine.InputLegacyModule.dll</HintPath>
+        </Reference>
         <Reference Include="UnityEngine.UI">
             <HintPath>$(MageArenaPath)\MageArena_Data\Managed\UnityEngine.UI.dll</HintPath>
+        </Reference>
+        <Reference Include="UnityEngine.UIModule">
+            <HintPath>$(MageArenaPath)\MageArena_Data\Managed\UnityEngine.UIModule.dll</HintPath>
         </Reference>
     </ItemGroup>
 
@@ -47,6 +56,15 @@
         <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
         <PathMap>$(MSBuildThisFileDirectory)=/src/</PathMap>
     </PropertyGroup>
+
+    <Target Name="CopyModToGame" AfterTargets="Build">
+        <PropertyGroup>
+            <ModDeployPath>$(MageArenaPath)\BepInEx\plugins\UnlimitedMages</ModDeployPath>
+        </PropertyGroup>
+        <Message Text="Deploying mod to $(ModDeployPath)..." Importance="high"/>
+        <MakeDir Directories="$(ModDeployPath)"/>
+        <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(ModDeployPath)"/>
+    </Target>
 
     <Target Name="PackageForThunderstore" AfterTargets="Build" Condition=" '$(Configuration)' == 'Release' ">
 
@@ -90,7 +108,7 @@
 
         <RemoveDir Directories="$(StagingDir)"/>
 
-        <Message Text="✔️ Successfully created package at $(PackageDir)$(ModName)-$(PackageVersion).zip" Importance="high"/>
+        <Message Text="Successfully created package at $(PackageDir)$(ModName)-$(PackageVersion).zip" Importance="high"/>
     </Target>
 
 </Project>
