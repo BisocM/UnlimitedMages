@@ -1,0 +1,9 @@
+{
+  "name": "UnlimitedMages",
+  "version_number": "1.0.1",
+  "website_url": "https://github.com/BisocM/UnlimitedMages",
+  "description": "A BepInEx mod for Mage Arena that removes the limit on the number of mages.",
+  "dependencies": [
+    "BepInEx-BepInExPack-5.4.2100"
+  ]
+}

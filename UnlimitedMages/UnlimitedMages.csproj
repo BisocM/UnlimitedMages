@@ -1,6 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
+        <MageArenaPath>C:\Program Files (x86)\Steam\steamapps\common\Mage Arena</MageArenaPath>
+
         <TargetFramework>netstandard2.1</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
@@ -9,34 +11,34 @@
 
     <ItemGroup>
         <Reference Include="0Harmony">
-            <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Mage Arena\BepInEx\core\0Harmony.dll</HintPath>
+            <HintPath>$(MageArenaPath)\BepInEx\core\0Harmony.dll</HintPath>
         </Reference>
         <Reference Include="Assembly-CSharp">
-            <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Mage Arena\MageArena_Data\Managed\Assembly-CSharp.dll</HintPath>
+            <HintPath>$(MageArenaPath)\MageArena_Data\Managed\Assembly-CSharp.dll</HintPath>
         </Reference>
         <Reference Include="BepInEx">
-            <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Mage Arena\BepInEx\core\BepInEx.dll</HintPath>
+            <HintPath>$(MageArenaPath)\BepInEx\core\BepInEx.dll</HintPath>
         </Reference>
         <Reference Include="com.rlabrecque.steamworks.net">
-            <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Mage Arena\MageArena_Data\Managed\com.rlabrecque.steamworks.net.dll</HintPath>
+            <HintPath>$(MageArenaPath)\MageArena_Data\Managed\com.rlabrecque.steamworks.net.dll</HintPath>
         </Reference>
         <Reference Include="DissonanceVoip">
-            <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Mage Arena\MageArena_Data\Managed\DissonanceVoip.dll</HintPath>
+            <HintPath>$(MageArenaPath)\MageArena_Data\Managed\DissonanceVoip.dll</HintPath>
         </Reference>
         <Reference Include="DissonanceVoip.FishNet">
-            <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Mage Arena\MageArena_Data\Managed\DissonanceVoip.FishNet.dll</HintPath>
+            <HintPath>$(MageArenaPath)\MageArena_Data\Managed\DissonanceVoip.FishNet.dll</HintPath>
         </Reference>
         <Reference Include="FishNet.Runtime">
-            <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Mage Arena\MageArena_Data\Managed\FishNet.Runtime.dll</HintPath>
+            <HintPath>$(MageArenaPath)\MageArena_Data\Managed\FishNet.Runtime.dll</HintPath>
         </Reference>
         <Reference Include="UnityEngine">
-            <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Mage Arena\MageArena_Data\Managed\UnityEngine.dll</HintPath>
+            <HintPath>$(MageArenaPath)\MageArena_Data\Managed\UnityEngine.dll</HintPath>
         </Reference>
         <Reference Include="UnityEngine.CoreModule">
-            <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Mage Arena\MageArena_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+            <HintPath>$(MageArenaPath)\MageArena_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
         </Reference>
         <Reference Include="UnityEngine.UI">
-          <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Mage Arena\MageArena_Data\Managed\UnityEngine.UI.dll</HintPath>
+            <HintPath>$(MageArenaPath)\MageArena_Data\Managed\UnityEngine.UI.dll</HintPath>
         </Reference>
     </ItemGroup>
 
@@ -45,5 +47,50 @@
         <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
         <PathMap>$(MSBuildThisFileDirectory)=/src/</PathMap>
     </PropertyGroup>
-    
+
+    <Target Name="PackageForThunderstore" AfterTargets="Build" Condition=" '$(Configuration)' == 'Release' ">
+
+        <PropertyGroup>
+            <ModName>UnlimitedMages</ModName>
+            <PackageDir>$(TargetDir)</PackageDir>
+            <StagingDir>$(TargetDir)staging</StagingDir>
+        </PropertyGroup>
+
+        <Message Text="⚡ Packaging for Thunderstore..." Importance="high"/>
+
+        <RemoveDir Directories="$(StagingDir)"/>
+
+        <MakeDir Directories="$(StagingDir)/plugins"/>
+
+        <ItemGroup>
+            <PackageFiles Include="$(ProjectDir)..\manifest.json"/>
+            <PackageFiles Include="$(ProjectDir)..\icon.png"/>
+            <PackageFiles Include="$(ProjectDir)..\README.md"/>
+        </ItemGroup>
+        <Copy SourceFiles="@(PackageFiles)" DestinationFolder="$(StagingDir)"/>
+
+        <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(StagingDir)/plugins"/>
+
+        <ReadLinesFromFile File="$(ProjectDir)..\manifest.json">
+            <Output TaskParameter="Lines" ItemName="ManifestLines"/>
+        </ReadLinesFromFile>
+
+        <ItemGroup>
+            <VersionLineItem Include="@(ManifestLines)" Condition="$([System.String]::new('%(Identity)').Contains('version_number'))"/>
+        </ItemGroup>
+
+        <PropertyGroup>
+            <PackageVersion>$([System.String]::new('%(VersionLineItem.Identity)').Split('"')[3])</PackageVersion>
+        </PropertyGroup>
+
+        <ZipDirectory
+                SourceDirectory="$(StagingDir)"
+                DestinationFile="$(PackageDir)$(ModName)-$(PackageVersion).zip"
+                Overwrite="true"/>
+
+        <RemoveDir Directories="$(StagingDir)"/>
+
+        <Message Text="✔️ Successfully created package at $(PackageDir)$(ModName)-$(PackageVersion).zip" Importance="high"/>
+    </Target>
+
 </Project>
