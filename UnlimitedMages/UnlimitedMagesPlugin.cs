@@ -23,6 +23,7 @@ namespace UnlimitedMages
         /// This value is accessed by various patches to dynamically adjust game logic and UI.
         /// </summary>
         public static ConfigEntry<int>? TeamSizeConfig;
+        public static string modsync = "all"; // Compatability with modsync plugin
 
         /// <summary>
         /// BepInEx entry point. Called once upon plugin loading.
