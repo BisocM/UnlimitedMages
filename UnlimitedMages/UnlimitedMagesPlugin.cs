@@ -11,18 +11,18 @@ namespace UnlimitedMages;
 ///     Main plugin class for the Unlimited Mages mod. Initializes configuration and applies Harmony patches.
 /// </summary>
 [BepInPlugin("com.bisocm.unlimited_mages", "Unlimited Mages", ModVersion)]
-public class UnlimitedMagesPlugin : BaseUnityPlugin
+public partial class UnlimitedMagesPlugin : BaseUnityPlugin
 {
     /// <summary>
     ///     Publicly accessible mod version.
     /// </summary>
-    public const string ModVersion = "1.1.1";
+    public const string ModVersion = "1.1.2";
 
     /// <summary>
     ///     Internal logger instance for the plugin.
     /// </summary>
     internal static ManualLogSource? Log;
-
+    
     /// <summary>
     ///     BepInEx entry point. Called once upon plugin loading.
     /// </summary>
