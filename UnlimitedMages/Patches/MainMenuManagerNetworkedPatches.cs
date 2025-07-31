@@ -1,50 +1,31 @@
 ﻿using HarmonyLib;
-using UnlimitedMages.Networking;
+using UnlimitedMages.System;
+using UnlimitedMages.System.Events;
+using UnlimitedMages.System.Events.Types;
 using UnlimitedMages.Utilities;
 
 namespace UnlimitedMages.Patches;
 
-/// <summary>
-///     Contains Harmony patches for the <see cref="MainMenuManagerNetworked" /> class.
-///     These patches resize server-side arrays that track player names on each team.
-/// </summary>
 [HarmonyPatch(typeof(MainMenuManagerNetworked))]
 public static class MainMenuManagerNetworkedPatches
 {
-    /// <summary>
-    ///     Postfixes the Start method to resize team arrays upon initialization.
-    /// </summary>
-    [HarmonyPatch(GameConstants.MainMenuManagerNetworked.StartMethod)]
-    [HarmonyPostfix]
-    public static void Start_Postfix(MainMenuManagerNetworked __instance)
+
+    static MainMenuManagerNetworkedPatches()
     {
-        ResizeTeamArrays(__instance);
+        EventBus.Subscribe<ConfigReadyEvent>(OnConfigReady_ResizeTeamArrays);
     }
 
-    /// <summary>
-    ///     Postfixes the ResetLocalTeam method to ensure team arrays are resized when team data is reset.
-    /// </summary>
-    [HarmonyPatch(GameConstants.MainMenuManagerNetworked.ResetLocalTeamMethod)]
-    [HarmonyPostfix]
-    public static void ResetLocalTeam_Postfix(MainMenuManagerNetworked __instance)
+    private static void OnConfigReady_ResizeTeamArrays(ConfigReadyEvent evt)
     {
-        ResizeTeamArrays(__instance);
-    }
+        var instance = UnityEngine.Object.FindFirstObjectByType<MainMenuManagerNetworked>();
+        if (instance == null) return;
 
-    /// <summary>
-    ///     Resizes the internal string arrays used to store player names for each team.
-    ///     This is crucial for the server's logic when assigning players to teams.
-    /// </summary>
-    /// <param name="instance">The instance of MainMenuManagerNetworked to patch.</param>
-    private static void ResizeTeamArrays(MainMenuManagerNetworked instance)
-    {
-        if (NetworkedConfigManager.Instance == null) return;
-        var teamSize = NetworkedConfigManager.Instance.TeamSize;
-
+        var teamSize = evt.TeamSize;
+        UnlimitedMagesPlugin.Log?.LogInfo($"Session config ready. Resizing MainMenuManagerNetworked arrays to size {teamSize}.");
+        
         var team1Field = AccessTools.Field(typeof(MainMenuManagerNetworked), GameConstants.MainMenuManagerNetworked.Team1PlayersField);
         var team2Field = AccessTools.Field(typeof(MainMenuManagerNetworked), GameConstants.MainMenuManagerNetworked.Team2PlayersField);
 
-        // Set the fields to new string arrays with the configured size.
         team1Field.SetValue(instance, new string[teamSize]);
         team2Field.SetValue(instance, new string[teamSize]);
     }

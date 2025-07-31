@@ -45,6 +45,9 @@ public static class GameConstants
 
         /// <summary>The name of the coroutine responsible for cleaning up network state before a scene change.</summary>
         public const string ChangeSceneAfterCleanupMethod = "ChangeSceneAfterCleanup";
+        
+        /// <summary></summary>
+        public const string HasLeaveGameFinishedField = "hasLeaveGameFinished";
     }
 
     /// <summary>
@@ -75,6 +78,9 @@ public static class GameConstants
 
         /// <summary>The original length to which player names are clamped in the UI.</summary>
         public const int PlayerNameClampLength = 10;
+        
+        /// <summary>The private field within the MainMenuManager responsible for storing the maximum player count..</summary>
+        public const string MaxPlayersField = "maxplayers";
     }
 
     /// <summary>
@@ -132,5 +138,20 @@ public static class GameConstants
 
         /// <summary>The ending Y-position for the last death message in a full 8-player lobby.</summary>
         public const float DeathMessageLastY = 31.2f;
+    }
+
+    /// <summary>
+    ///     Constants for all networking-related constants.
+    /// </summary>
+    public static class Networking
+    {
+        /// <summary>The debouncing period between searches of Dissonance manager instances.</summary>
+        public const float DissonanceSearchInterval = 1f;
+        
+        /// <summary>The prefix that is expected in the Dissonance communications.</summary>
+        public const string CommandPrefix = "[UNLIMITED_MAGES]";
+        
+        /// <summary>The expected command delimiter.</summary>
+        public const char CommandDelimiter = ':';
     }
 }
