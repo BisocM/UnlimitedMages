@@ -41,7 +41,7 @@ If you prefer to install manually, you must install the BepInEx dependency first
 
 ## Usage
 
-Configuration is now handled entirely in-game by the lobby host.
+Configuration is handled entirely in-game by the lobby host.
 
 1.  Ensure all players who wish to join have the mod installed.
 2.  The player who wants to be the host navigates to `Play` -> `Create Lobby`.
@@ -63,7 +63,7 @@ Configuration is now handled entirely in-game by the lobby host.
 
 #### **Q: How do I change the team/lobby size?**
 
-**A:** The **lobby host** sets the team size using the new slider on the "Create Lobby" screen. Clients who join the lobby will automatically have their game adjusted to match the host's settings. You no longer need to edit any config files.
+**A:** The **lobby host** sets the team size using the new slider on the "Create Lobby" screen. Clients who join the lobby will automatically have their game adjusted to match the host's settings.
 
 #### **Q: What is the maximum number of players?**
 
