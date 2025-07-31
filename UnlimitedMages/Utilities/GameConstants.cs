@@ -29,7 +29,7 @@ public static class GameConstants
         /// <summary>
         ///     The absolute minimum size a team can be. Used for the UI slider.
         /// </summary>
-        public const int MinimumTeamSize = 1;
+        public const int MinimumTeamSize = 2;
     }
 
     /// <summary>
