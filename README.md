@@ -1,5 +1,8 @@
 # Unlimited Mages for Mage Arena
 
+[![View on Thunderstore](https://img.shields.io/badge/Thunderstore-UnlimitedMages-23395B?style=for-the-badge&logo=thunderstore)](https://thunderstore.io/c/mage-arena/p/BisocM/UnlimitedMages/) 
+[![Latest Release](https://img.shields.io/github/v/release/BisocM/UnlimitedMages?style=for-the-badge)](https://github.com/BisocM/UnlimitedMages/releases/latest)
+
 -----
 **Unlimited Mages** is a BepInEx mod for Mage Arena that removes the hardcoded player limit, allowing for massive custom games. Upper limit is 128v128 players.
 

@@ -3,7 +3,8 @@ using BepInEx;
 using BepInEx.Logging;
 using HarmonyLib;
 using UnlimitedMages.Components;
-using UnlimitedMages.System;
+using UnlimitedMages.System.Events;
+using UnlimitedMages.System.Events.Types;
 
 namespace UnlimitedMages;
 
@@ -16,7 +17,7 @@ public partial class UnlimitedMagesPlugin : BaseUnityPlugin
     /// <summary>
     ///     Publicly accessible mod version.
     /// </summary>
-    public const string ModVersion = "1.1.2";
+    public const string ModVersion = "1.2.0";
 
     /// <summary>
     ///     Internal logger instance for the plugin.
@@ -30,7 +31,7 @@ public partial class UnlimitedMagesPlugin : BaseUnityPlugin
     {
         Log = BepInEx.Logging.Logger.CreateLogSource("UnlimitedMages");
 
-        ModLifecycleEvents.OnBootstrapReady += InitializeModSystems;
+        EventBus.Subscribe<BootstrapReadyEvent>(OnBootstrapReady);
 
         Harmony.CreateAndPatchAll(Assembly.GetExecutingAssembly());
 
@@ -40,16 +41,16 @@ public partial class UnlimitedMagesPlugin : BaseUnityPlugin
     private void OnDestroy()
     {
         // Unsubscribe from events to prevent memory leaks
-        ModLifecycleEvents.OnBootstrapReady -= InitializeModSystems;
+        EventBus.Unsubscribe<BootstrapReadyEvent>(OnBootstrapReady);
     }
-
+    
     /// <summary>
     ///     This method is called by the OnBootstrapReady event when the game's core manager is ready.
     ///     It triggers the injection of all custom mod components.
     /// </summary>
-    private void InitializeModSystems()
+    private void OnBootstrapReady(BootstrapReadyEvent evt)
     {
-        Log?.LogInfo("OnBootstrapReady event received. Initializing mod systems...");
+        Log?.LogInfo("BootstrapReady event received. Initializing mod systems...");
         ComponentActivator.Inject(Log!);
     }
 }
