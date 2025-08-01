@@ -45,6 +45,9 @@ public static class GameConstants
 
         /// <summary>The name of the coroutine responsible for cleaning up network state before a scene change.</summary>
         public const string ChangeSceneAfterCleanupMethod = "ChangeSceneAfterCleanup";
+
+        /// <summary>A method used by the game to fetch the latest information about a lobby and decide if you're allowed to connect.</summary>
+        public const string OnGetLobbyData = "OnGetLobbyData";
         
         /// <summary></summary>
         public const string HasLeaveGameFinishedField = "hasLeaveGameFinished";

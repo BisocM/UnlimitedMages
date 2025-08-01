@@ -1,6 +1,6 @@
 {
   "name": "UnlimitedMages",
-  "version_number": "1.2.3",
+  "version_number": "1.2.4",
   "website_url": "https://github.com/BisocM/UnlimitedMages",
   "description": "A simple mod that allows lobby size modifications. Must be installed by everyone in the lobby!",
   "dependencies": [

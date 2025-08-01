@@ -17,7 +17,7 @@ public partial class UnlimitedMagesPlugin : BaseUnityPlugin
     /// <summary>
     ///     Publicly accessible mod version.
     /// </summary>
-    public const string ModVersion = "1.2.3";
+    public const string ModVersion = "1.2.4";
 
     /// <summary>
     ///     Internal logger instance for the plugin.

@@ -242,40 +242,6 @@ public static class MainMenuManagerPatches
     }
 
     [HarmonyPatch(GameConstants.MainMenuManager.RemoveHatMethod)]
-    [HarmonyPrefix]
-    public static bool RemoveHat_Prefix(MainMenuManager __instance, string PlayerName)
-    {
-        var playerNamesField = AccessTools.Field(typeof(MainMenuManager), GameConstants.MainMenuManager.PlayerNamesField);
-        var bodiesField = AccessTools.Field(typeof(MainMenuManager), GameConstants.MainMenuManager.BodiesField);
-        var playerNames = (string[])playerNamesField.GetValue(__instance);
-        var bodies = (GameObject[])bodiesField.GetValue(__instance);
-
-        for (var i = 0; i < playerNames.Length; i++)
-        {
-            if (playerNames[i] != PlayerName) continue;
-
-            if (bodies != null && i < bodies.Length && bodies[i] != null)
-            {
-                Object.Destroy(bodies[i]);
-                bodies[i] = null!;
-            }
-
-            if (__instance.hats != null && i < __instance.hats.Length) __instance.hats[i].SetActive(false);
-            if (__instance.rankandleveltext != null && i < __instance.rankandleveltext.Length)
-                __instance.rankandleveltext[i].text = "";
-            if (__instance.texts != null && i * 2 + 1 < __instance.texts.Length)
-            {
-                __instance.texts[i * 2].text = "";
-                __instance.texts[i * 2 + 1].text = "";
-            }
-
-            break;
-        }
-
-        return true;
-    }
-
-    [HarmonyPatch(GameConstants.MainMenuManager.RemoveHatMethod)]
     [HarmonyPostfix]
     public static void RemoveHat_Postfix(MainMenuManager __instance, string PlayerName)
     {
