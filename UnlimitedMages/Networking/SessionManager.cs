@@ -1,12 +1,11 @@
-﻿using System;
-using System.Collections;
+﻿using System.Collections;
 using BepInEx.Logging;
 using Dissonance;
 using Dissonance.Networking;
 using Steamworks;
 using UnityEngine;
 using UnlimitedMages.Components;
-using UnlimitedMages.System;
+using UnlimitedMages.System.Components;
 using UnlimitedMages.System.Events;
 using UnlimitedMages.System.Events.Types;
 using UnlimitedMages.UI;
@@ -14,26 +13,13 @@ using UnlimitedMages.Utilities;
 
 namespace UnlimitedMages.Networking;
 
-public class SessionManager : MonoBehaviour, IModComponent
+internal sealed class SessionManager : MonoBehaviour, IModComponent
 {
-    private Coroutine? _findDissonanceCoroutine;
     private DissonanceComms? _comms;
+    private Coroutine? _findDissonanceCoroutine;
     private bool _networkStartedAndHandled;
 
     public static SessionManager? Instance { get; private set; }
-
-    public void Initialize(ManualLogSource log)
-    {
-        if (Instance != null)
-        {
-            Destroy(this);
-            return;
-        }
-
-        Instance = this;
-        EventBus.Subscribe<HostTeamSizeChangedEvent>(OnHostTeamSizeChanged);
-        _findDissonanceCoroutine = StartCoroutine(FindDissonance());
-    }
 
     private void Update()
     {
@@ -44,7 +30,7 @@ public class SessionManager : MonoBehaviour, IModComponent
         {
             UnlimitedMagesPlugin.Log?.LogInfo("[Host] Network initialized. Setting local config and preparing to broadcast.");
 
-            SetAndBroadcastTeamSize(UISliderInjector.SelectedTeamSize);
+            SetAndBroadcastTeamSize(UnlimitedMagesSlider.SelectedTeamSize);
         }
         else // If we are a client, we request the config from the host.
         {
@@ -61,11 +47,24 @@ public class SessionManager : MonoBehaviour, IModComponent
             StopCoroutine(_findDissonanceCoroutine);
             _findDissonanceCoroutine = null;
         }
-        
+
         if (_comms != null)
             _comms.Text.MessageReceived -= OnChatMessageReceived;
 
         EventBus.Unsubscribe<HostTeamSizeChangedEvent>(OnHostTeamSizeChanged);
+    }
+
+    public void Initialize(ManualLogSource log)
+    {
+        if (Instance != null)
+        {
+            Destroy(this);
+            return;
+        }
+
+        Instance = this;
+        EventBus.Subscribe<HostTeamSizeChangedEvent>(OnHostTeamSizeChanged);
+        _findDissonanceCoroutine = StartCoroutine(FindDissonance());
     }
 
     private void OnHostTeamSizeChanged(HostTeamSizeChangedEvent evt)

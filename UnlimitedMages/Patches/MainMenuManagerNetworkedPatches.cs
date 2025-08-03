@@ -2,7 +2,8 @@
 using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
-using UnlimitedMages.System;
+using UnityEngine;
+using UnlimitedMages.System.Components;
 using UnlimitedMages.System.Events;
 using UnlimitedMages.System.Events.Types;
 using UnlimitedMages.Utilities;
@@ -10,7 +11,7 @@ using UnlimitedMages.Utilities;
 namespace UnlimitedMages.Patches;
 
 [HarmonyPatch(typeof(MainMenuManagerNetworked))]
-public static class MainMenuManagerNetworkedPatches
+internal static class MainMenuManagerNetworkedPatches
 {
     static MainMenuManagerNetworkedPatches()
     {
@@ -26,7 +27,7 @@ public static class MainMenuManagerNetworkedPatches
         var modifiedInstructions = TranspileResizeTeamArrays(instructions, GameConstants.MainMenuManagerNetworked.Team1PlayersField);
         return TranspileResizeTeamArrays(modifiedInstructions, GameConstants.MainMenuManagerNetworked.Team2PlayersField);
     }
-    
+
     [HarmonyPatch(GameConstants.MainMenuManagerNetworked.StartMethod)]
     [HarmonyTranspiler]
     public static IEnumerable<CodeInstruction> Start_Transpiler(IEnumerable<CodeInstruction> instructions)
@@ -42,12 +43,12 @@ public static class MainMenuManagerNetworkedPatches
 
     private static void OnConfigReady_ResizeTeamArrays(ConfigReadyEvent evt)
     {
-        var instance = UnityEngine.Object.FindFirstObjectByType<MainMenuManagerNetworked>();
+        var instance = Object.FindFirstObjectByType<MainMenuManagerNetworked>();
         if (instance == null) return;
 
         var teamSize = evt.TeamSize;
         UnlimitedMagesPlugin.Log?.LogInfo($"Session config ready. Resizing MainMenuManagerNetworked arrays to size {teamSize}.");
-        
+
         var team1Field = AccessTools.Field(typeof(MainMenuManagerNetworked), GameConstants.MainMenuManagerNetworked.Team1PlayersField);
         var team2Field = AccessTools.Field(typeof(MainMenuManagerNetworked), GameConstants.MainMenuManagerNetworked.Team2PlayersField);
 
@@ -74,7 +75,7 @@ public static class MainMenuManagerNetworkedPatches
                 newInstructions[i + 1].opcode != OpCodes.Newarr ||
                 newInstructions[i + 2].opcode != OpCodes.Stfld ||
                 newInstructions[i + 2].operand as FieldInfo != targetField) continue;
-            
+
             UnlimitedMagesPlugin.Log?.LogInfo($"Transpiling {targetFieldName} initialization...");
 
             // Replace 'ldc.i4.4' with a call to get the dynamic team size
@@ -87,6 +88,6 @@ public static class MainMenuManagerNetworkedPatches
 
         return newInstructions;
     }
-    
+
     #endregion
 }

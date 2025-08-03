@@ -3,18 +3,18 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection.Emit;
 using HarmonyLib;
-using UnlimitedMages.System;
-using UnlimitedMages.Utilities;
 using UnityEngine;
 using UnityEngine.UI;
+using UnlimitedMages.System.Components;
 using UnlimitedMages.System.Events;
 using UnlimitedMages.System.Events.Types;
+using UnlimitedMages.Utilities;
 using Object = UnityEngine.Object;
 
 namespace UnlimitedMages.Patches;
 
 [HarmonyPatch(typeof(MainMenuManager))]
-public static class MainMenuManagerPatches
+internal static class MainMenuManagerPatches
 {
     private static bool _isLobbyUiReady;
     private static readonly List<(string name, string rank, string steamId)> PendingPlayers = new();
@@ -31,10 +31,7 @@ public static class MainMenuManagerPatches
         EventBus.Unsubscribe<ConfigReadyEvent>(OnConfigReady_ResizeLobbyUI);
         EventBus.Subscribe<ConfigReadyEvent>(OnConfigReady_ResizeLobbyUI);
 
-        if (_timeoutCoroutine != null)
-        {
-            __instance.StopCoroutine(_timeoutCoroutine);
-        }
+        if (_timeoutCoroutine != null) __instance.StopCoroutine(_timeoutCoroutine);
 
         _timeoutCoroutine = __instance.StartCoroutine(LobbyUiTimeoutCoroutine());
     }
@@ -43,12 +40,11 @@ public static class MainMenuManagerPatches
     {
         yield return new WaitForSeconds(15f);
 
-        if (!_isLobbyUiReady)
-        {
-            UnlimitedMagesPlugin.Log?.LogWarning("Timed out waiting for host config. Building UI with default size to prevent deadlock.");
-            // Manually fire a config ready event with the default size
-            OnConfigReady_ResizeLobbyUI(new ConfigReadyEvent(GameConstants.Game.OriginalTeamSize));
-        }
+        if (_isLobbyUiReady) yield break;
+        UnlimitedMagesPlugin.Log?.LogWarning("Timed out waiting for host config. Building UI with default size to prevent deadlock.");
+
+        // Manually fire a config ready event with the default size
+        OnConfigReady_ResizeLobbyUI(new ConfigReadyEvent(GameConstants.Game.OriginalTeamSize));
     }
 
     private static void OnConfigReady_ResizeLobbyUI(ConfigReadyEvent evt)
@@ -79,10 +75,7 @@ public static class MainMenuManagerPatches
         _isLobbyUiReady = true;
 
         UnlimitedMagesPlugin.Log?.LogInfo($"Processing {PendingPlayers.Count} pending players...");
-        foreach (var player in PendingPlayers)
-        {
-            instance.SyncHats(player.name, player.rank, player.steamId);
-        }
+        foreach (var player in PendingPlayers) instance.SyncHats(player.name, player.rank, player.steamId);
 
         PendingPlayers.Clear();
     }
@@ -205,9 +198,7 @@ public static class MainMenuManagerPatches
     public static bool SyncHats_Prefix(string PlayerName, string PlayerRank, string steamid)
     {
         if (_isLobbyUiReady)
-        {
             return true; // UI is ready, proceed to original method.
-        }
 
         PendingPlayers.Add((PlayerName, PlayerRank, steamid));
         return false; // UI not ready, queue the player and skip original method.
@@ -246,14 +237,11 @@ public static class MainMenuManagerPatches
     public static void RemoveHat_Postfix(MainMenuManager __instance, string PlayerName)
     {
         var clampStringMethod = AccessTools.Method(typeof(MainMenuManager), GameConstants.MainMenuManager.ClampStringMethod);
-        var clampedName = (string)clampStringMethod.Invoke(__instance, new object[] { PlayerName, GameConstants.MainMenuManager.PlayerNameClampLength });
+        var clampedName = (string)clampStringMethod.Invoke(__instance, [PlayerName, GameConstants.MainMenuManager.PlayerNameClampLength]);
 
         var kickDictionaryField = AccessTools.Field(typeof(KickPlayersHolder), "nametosteamid");
         var kickDictionary = (Dictionary<string, string>)kickDictionaryField.GetValue(__instance.kickplayershold);
 
-        if (kickDictionary != null && kickDictionary.ContainsKey(clampedName))
-        {
-            kickDictionary.Remove(clampedName);
-        }
+        if (kickDictionary != null && kickDictionary.ContainsKey(clampedName)) kickDictionary.Remove(clampedName);
     }
 }

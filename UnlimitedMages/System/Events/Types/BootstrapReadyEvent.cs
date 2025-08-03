@@ -1,6 +1,6 @@
 ﻿namespace UnlimitedMages.System.Events.Types;
 
-public class BootstrapReadyEvent
+internal class BootstrapReadyEvent
 {
-    // This class is empty.
+    // This class is empty - only used for signalling.
 }

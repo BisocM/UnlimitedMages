@@ -3,12 +3,12 @@ using System.Collections.Generic;
 
 namespace UnlimitedMages.System.Events;
 
-public static class EventBus
+internal static class EventBus
 {
     private static readonly Dictionary<Type, Delegate> SEvents = new();
 
     /// <summary>
-    /// Subscribes a listener to a specific type of event message.
+    ///     Subscribes a listener to a specific type of event message.
     /// </summary>
     /// <param name="listener">The action to execute when the event is published.</param>
     /// <typeparam name="T">The type of the event message to listen for.</typeparam>
@@ -20,9 +20,9 @@ public static class EventBus
         else
             SEvents[eventType] = listener;
     }
-    
+
     /// <summary>
-    /// Unsubscribes a listener from a specific type of event message.
+    ///     Unsubscribes a listener from a specific type of event message.
     /// </summary>
     /// <param name="listener">The action to remove.</param>
     /// <typeparam name="T">The type of the event message to stop listening for.</typeparam>
@@ -39,7 +39,7 @@ public static class EventBus
     }
 
     /// <summary>
-    /// Publishes an event message to all subscribed listeners.
+    ///     Publishes an event message to all subscribed listeners.
     /// </summary>
     /// <param name="message">The event message object to send.</param>
     /// <typeparam name="T">The type of the event message.</typeparam>

@@ -6,7 +6,7 @@ namespace UnlimitedMages.Components;
 ///     Defines the contract for a component that can be automatically
 ///     discovered and injected into the game's persistent manager.
 /// </summary>
-public interface IModComponent
+internal interface IModComponent
 {
     /// <summary>
     ///     Initializes the component with necessary dependencies.

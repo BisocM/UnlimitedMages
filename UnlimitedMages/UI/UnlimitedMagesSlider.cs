@@ -4,21 +4,21 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using UnlimitedMages.Components;
-using UnlimitedMages.System;
+using UnlimitedMages.System.Components;
 using UnlimitedMages.System.Events;
 using UnlimitedMages.System.Events.Types;
 using UnlimitedMages.Utilities;
 
 namespace UnlimitedMages.UI;
 
-public class SliderInteractionHelper : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
+internal class SliderInteractionHelper : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
 {
     public bool IsBeingDragged { get; private set; }
     public void OnPointerDown(PointerEventData eventData) => IsBeingDragged = true;
     public void OnPointerUp(PointerEventData eventData) => IsBeingDragged = false;
 }
 
-public class UISliderInjector : MonoBehaviour, IModComponent
+internal sealed class UnlimitedMagesSlider : MonoBehaviour, IModComponent
 {
     private const string TargetPanelName = "CreateLobbyMenu";
     private bool _isReady;
@@ -28,27 +28,25 @@ public class UISliderInjector : MonoBehaviour, IModComponent
 
     public static int SelectedTeamSize { get; private set; } = GameConstants.Game.MinimumTeamSize;
 
-    public void Initialize(ManualLogSource log)
-    {
-        _isReady = true;
-
-        EventBus.Subscribe<ConfigReadyEvent>(OnConfigReady_UpdateSlider);
-    }
-
     private void Update()
     {
         if (!_isReady || _teamSizeSlider != null) return;
 
         var panelObject = GameObject.Find(TargetPanelName);
         if (panelObject != null && panelObject.activeInHierarchy)
-        {
             AddSliderToPanel(panelObject.transform);
-        }
     }
 
     private void OnDestroy()
     {
         EventBus.Unsubscribe<ConfigReadyEvent>(OnConfigReady_UpdateSlider);
+    }
+
+    public void Initialize(ManualLogSource log)
+    {
+        _isReady = true;
+
+        EventBus.Subscribe<ConfigReadyEvent>(OnConfigReady_UpdateSlider);
     }
 
     private void AddSliderToPanel(Transform panelTransform)

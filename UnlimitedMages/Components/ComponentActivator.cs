@@ -9,7 +9,7 @@ namespace UnlimitedMages.Components;
 ///     A static utility class responsible for discovering and injecting custom mod components
 ///     into a persistent GameObject at runtime.
 /// </summary>
-public static class ComponentActivator
+internal static class ComponentActivator
 {
     /// <summary>
     ///     Scans the executing assembly for all concrete classes that implement <see cref="IModComponent" />,

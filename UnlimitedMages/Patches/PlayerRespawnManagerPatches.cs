@@ -3,14 +3,14 @@ using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
 using UnityEngine;
-using UnlimitedMages.System;
+using UnlimitedMages.System.Components;
 using UnlimitedMages.Utilities;
 using Object = UnityEngine.Object;
 
 namespace UnlimitedMages.Patches;
 
 [HarmonyPatch(typeof(PlayerRespawnManager))]
-public static class PlayerRespawnManagerPatches
+internal static class PlayerRespawnManagerPatches
 {
     [HarmonyPatch(GameConstants.PlayerRespawnManager.OnStartClientMethod)]
     [HarmonyPostfix]
@@ -18,7 +18,7 @@ public static class PlayerRespawnManagerPatches
     {
         // Read configuration from the centralized manager
         if (ConfigManager.Instance == null || !ConfigManager.Instance.IsConfigReady) return;
-        
+
         var teamSize = ConfigManager.Instance.TeamSize;
         var newLobbySize = teamSize * GameConstants.Game.NumTeams;
 
@@ -54,14 +54,14 @@ public static class PlayerRespawnManagerPatches
                 newInstructions[i].opcode != OpCodes.Ldc_I4_4 ||
                 newInstructions[i + 1].opcode != OpCodes.Stfld ||
                 newInstructions[i + 1].operand as FieldInfo != warlocksSetField) continue;
-            
+
             // Get the team size from the new centralized ConfigManager
             var getInstance = AccessTools.PropertyGetter(typeof(ConfigManager), nameof(ConfigManager.Instance));
             newInstructions[i] = new CodeInstruction(OpCodes.Call, getInstance);
-            
+
             var getTeamSize = AccessTools.PropertyGetter(typeof(ConfigManager), nameof(ConfigManager.TeamSize));
             newInstructions.Insert(i + 1, new CodeInstruction(OpCodes.Callvirt, getTeamSize));
-            
+
             UnlimitedMagesPlugin.Log?.LogInfo("Successfully transpiled FadeInVignette to use dynamic team size.");
             break;
         }
@@ -76,7 +76,7 @@ public static class PlayerRespawnManagerPatches
         var scoreboardField = AccessTools.Field(typeof(PlayerRespawnManager), GameConstants.PlayerRespawnManager.ScoreboardField);
         var scoreboard = (GameObject)scoreboardField.GetValue(__instance);
         if (scoreboard == null) return;
-        
+
         // Read configuration from the centralized manager
         if (ConfigManager.Instance?.TeamSize == null) return;
         var requiredChildCount = ConfigManager.Instance.TeamSize * GameConstants.Game.NumTeams;
@@ -87,7 +87,7 @@ public static class PlayerRespawnManagerPatches
         if (currentChildCount == 0) return;
 
         var template = scoreboardTransform.GetChild(0).gameObject;
-        
+
         for (var i = currentChildCount; i < requiredChildCount; i++)
         {
             var newPanel = Object.Instantiate(template, scoreboardTransform);
