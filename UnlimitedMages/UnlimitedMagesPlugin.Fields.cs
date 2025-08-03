@@ -21,7 +21,7 @@ public partial class UnlimitedMagesPlugin
     /// <summary>
     ///     Publicly accessible mod version.
     /// </summary>
-    public const string ModVersion = "1.3.0";
+    public const string ModVersion = "2.0.0";
 
     /// <summary>
     ///     The mod's display name.
