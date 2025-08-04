@@ -10,26 +10,30 @@ using UnlimitedMages.System.Events.Types;
 namespace UnlimitedMages;
 
 /// <summary>
-///     Main plugin class for the Unlimited Mages mod. Initializes configuration and applies Harmony patches.
+///     The main entry point for the Unlimited Mages BepInEx plugin.
+///     This class is responsible for initializing the logger, applying Harmony patches,
+///     and setting up the event-driven system for component injection.
 /// </summary>
 [BepInPlugin(ModGuid, ModName, ModVersion)]
 [GameVersionCompatibility("0.7.4", "0.7.6")]
 public partial class UnlimitedMagesPlugin : BaseUnityPlugin
 {
     /// <summary>
-    ///     Internal logger instance for the plugin.
+    ///     The static logger instance for the mod.
     /// </summary>
     internal static ManualLogSource? Log;
 
     /// <summary>
-    ///     BepInEx entry point. Called once upon plugin loading.
+    ///     The entry point method called by BepInEx when the plugin is loaded.
     /// </summary>
     private void Awake()
     {
         Log = BepInEx.Logging.Logger.CreateLogSource("UnlimitedMages");
 
+        // Subscribe to the BootstrapReadyEvent to know when it's safe to inject our components.
         EventBus.Subscribe<BootstrapReadyEvent>(OnBootstrapReady);
 
+        // Apply all Harmony patches defined in this assembly.
         Harmony.CreateAndPatchAll(Assembly.GetExecutingAssembly());
 
         Log.LogInfo("Unlimited Mages Mod has been loaded and patched successfully!");
@@ -37,13 +41,12 @@ public partial class UnlimitedMagesPlugin : BaseUnityPlugin
 
     private void OnDestroy()
     {
-        // Unsubscribe from events to prevent memory leaks
+        // Clean up event subscriptions when the plugin is unloaded.
         EventBus.Unsubscribe<BootstrapReadyEvent>(OnBootstrapReady);
     }
 
     /// <summary>
-    ///     This method is called by the OnBootstrapReady event when the game's core manager is ready.
-    ///     It triggers the injection of all custom mod components.
+    ///     Event handler for when the BootstrapManager is ready. This triggers the injection of all mod components.
     /// </summary>
     private void OnBootstrapReady(BootstrapReadyEvent evt)
     {

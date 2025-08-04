@@ -8,40 +8,44 @@ using HarmonyLib;
 using Steamworks;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnlimitedMages.System.Components;
 using UnlimitedMages.System.Events;
 using UnlimitedMages.System.Events.Types;
-using UnlimitedMages.UI;
+using UnlimitedMages.UI.Lobby;
 using UnlimitedMages.Utilities;
 using Object = UnityEngine.Object;
 
 namespace UnlimitedMages.Patches;
 
+/// <summary>
+///     Contains Harmony patches for the <see cref="BootstrapManager" /> class.
+///     These patches handle lobby creation, matchmaking, scene transitions, and versioning to support larger team sizes.
+/// </summary>
 [HarmonyPatch(typeof(BootstrapManager))]
 internal static class BootstrapManagerPatches
 {
-    #region Fields
-
     private static bool _eventFired;
 
-    #endregion
-
-    #region Public Lobby Exposure Patches
-
+    /// <summary>
+    ///     Postfixes the lobby creation callback to tag the lobby with mod-specific data.
+    ///     This ensures that only players with the same mod version can see and join the lobby.
+    /// </summary>
     [HarmonyPatch(typeof(BootstrapManager), GameConstants.BootstrapManager.OnLobbyCreatedMethod)]
     [HarmonyPostfix]
     public static void OnLobbyCreated_Postfix(LobbyCreated_t callback)
     {
-        // Only proceed if the lobby was created successfully
         if (callback.m_eResult != EResult.k_EResultOK) return;
+
+        // Reset all mod systems to a clean state for the new lobby session.
+        UnlimitedMagesPlugin.Log?.LogInfo("Host created a new lobby. Resetting mod session states.");
+        SessionManager.Instance?.Reset();
+        ConfigManager.Instance?.Reset();
+        LobbyStateManager.Instance?.Reset();
 
         var lobbyId = new CSteamID(callback.m_ulSteamIDLobby);
 
-        // To prevent vanilla players from discovering the modded public lobby, modify the version string.
-        // The vanilla client searches for lobbies with matching version.
+        // Tag the lobby with a modified version string and mod-specific GUID.
         SteamMatchmaking.SetLobbyData(lobbyId, "Version", GameConstants.BootstrapManager.GetModdedVersionString());
-
-        // Set a custom metadata field to identify this as a modded lobby.
-        // Using the mod's GUID and Version here.
         SteamMatchmaking.SetLobbyData(
             lobbyId,
             UnlimitedMagesPlugin.ModGuid,
@@ -51,11 +55,14 @@ internal static class BootstrapManagerPatches
         UnlimitedMagesPlugin.Log?.LogInfo($"Tagged lobby {callback.m_ulSteamIDLobby} as modded with version {UnlimitedMagesPlugin.ModVersion}.");
     }
 
+    /// <summary>
+    ///     Prefixes the lobby list request to add a filter for the mod's GUID and version.
+    ///     This ensures that the lobby browser only shows compatible modded games.
+    /// </summary>
     [HarmonyPatch(typeof(BootstrapManager), nameof(BootstrapManager.GetLobbiesList))]
     [HarmonyPrefix]
     public static void GetLobbiesList_Prefix()
     {
-        // This filters enforces the lobbies that are found to have the mod installed.
         SteamMatchmaking.AddRequestLobbyListStringFilter(
             UnlimitedMagesPlugin.ModGuid,
             UnlimitedMagesPlugin.ModVersion,
@@ -63,25 +70,24 @@ internal static class BootstrapManagerPatches
         );
     }
 
+    /// <summary>
+    ///     Transpiles the GetLobbiesList method to replace the standard application version check
+    ///     with a check for the modded version string.
+    /// </summary>
     [HarmonyPatch(typeof(BootstrapManager), nameof(BootstrapManager.GetLobbiesList))]
     [HarmonyTranspiler]
     public static IEnumerable<CodeInstruction> GetLobbiesList_Transpiler(IEnumerable<CodeInstruction> instructions)
     {
         var newInstructions = new List<CodeInstruction>(instructions);
 
-        // The method that needs replacing is UnityEngine.Application.get_version. Replace it with our custom version.
         var originalMethod = AccessTools.PropertyGetter(typeof(Application), nameof(Application.version));
         var replacementMethod = AccessTools.Method(typeof(GameConstants.BootstrapManager), nameof(GameConstants.BootstrapManager.GetModdedVersionString));
 
         for (var i = 0; i < newInstructions.Count; i++)
         {
-            // Find where the game calls Application.get_version
             if (!newInstructions[i].Calls(originalMethod)) continue;
             UnlimitedMagesPlugin.Log?.LogInfo("Patching GetLobbiesList to search for modded version string...");
-
-            // Replace the original call with a call the modded method
             newInstructions[i] = new CodeInstruction(OpCodes.Call, replacementMethod);
-
             UnlimitedMagesPlugin.Log?.LogInfo("Successfully patched GetLobbiesList.");
             break; // Stop after the first replacement
         }
@@ -89,11 +95,11 @@ internal static class BootstrapManagerPatches
         return newInstructions;
     }
 
-    #endregion
-
-    #region Player Limit Patches
-
-    [HarmonyPatch("Awake")]
+    /// <summary>
+    ///     Postfixes the Awake method to publish a global event indicating that the BootstrapManager is ready.
+    ///     This is used to trigger the injection of the mod's components.
+    /// </summary>
+    [HarmonyPatch(GameConstants.BootstrapManager.AwakeMethod)]
     [HarmonyPostfix]
     public static void Awake_Postfix()
     {
@@ -102,19 +108,26 @@ internal static class BootstrapManagerPatches
         _eventFired = true;
     }
 
+    /// <summary>
+    ///     Transpiles the CreateLobby method to use the dynamically selected team size from the UI slider
+    ///     instead of the hardcoded value.
+    /// </summary>
     [HarmonyPatch(nameof(BootstrapManager.CreateLobby), typeof(bool))]
     [HarmonyTranspiler]
     public static IEnumerable<CodeInstruction> CreateLobby_Transpiler(IEnumerable<CodeInstruction> instructions) =>
         TranspileGetTeamSize(instructions, true);
 
+    /// <summary>
+    ///     Transpiles the lobby list update method to allow lobbies of any size to be displayed,
+    ///     bypassing the default check against a hardcoded max player count.
+    /// </summary>
     [HarmonyPatch(GameConstants.BootstrapManager.OnGetLobbyListMethod)]
     [HarmonyTranspiler]
     public static IEnumerable<CodeInstruction> OnGetLobbyList_Transpiler(IEnumerable<CodeInstruction> instructions) =>
         TranspileAllowAnyTeamSize(instructions);
 
     /// <summary>
-    ///     Postfix patch to use the authoritative lobby size from Steamworks. This prevents issues on the client
-    ///     where game logic could run with an incorrect default size before the mod's configuration is synced.
+    ///     Postfixes the lobby entry callback to reset mod state for clients joining a lobby.
     /// </summary>
     [HarmonyPatch(GameConstants.BootstrapManager.OnLobbyEnteredMethod)]
     [HarmonyPostfix]
@@ -122,6 +135,11 @@ internal static class BootstrapManagerPatches
     {
         var isHost = SteamMatchmaking.GetLobbyOwner(new CSteamID(callback.m_ulSteamIDLobby)) == SteamUser.GetSteamID();
         if (isHost) return;
+
+        UnlimitedMagesPlugin.Log?.LogInfo("Client has entered a lobby. Resetting mod session state.");
+        SessionManager.Instance?.Reset();
+        ConfigManager.Instance?.Reset();
+        LobbyStateManager.Instance?.Reset();
 
         var lobbyId = new CSteamID(callback.m_ulSteamIDLobby);
         var memberLimit = SteamMatchmaking.GetLobbyMemberLimit(lobbyId);
@@ -131,25 +149,32 @@ internal static class BootstrapManagerPatches
         UnlimitedMagesPlugin.Log?.LogInfo($"Client entered lobby. Correcting max players to Steam value: {memberLimit}");
     }
 
+    /// <summary>
+    ///     Prefixes the scene change method to inject a custom cleanup routine.
+    ///     This ensures networking components like Dissonance and FishNet are properly shut down before returning to the main menu.
+    /// </summary>
     [HarmonyPatch(GameConstants.BootstrapManager.ChangeSceneAfterCleanupMethod, typeof(string))]
     [HarmonyPrefix]
     public static bool ChangeSceneAfterCleanup_Prefix(string sceneName, ref IEnumerator __result)
     {
         __result = CustomChangeSceneAfterCleanup(sceneName);
-        return false;
+        return false; // Prevents the original method from running.
     }
 
+    /// <summary>
+    ///     Transpiles the lobby data retrieval method to use the modded version string for validation
+    ///     and to dynamically check the lobby member limit from Steam instead of using a hardcoded value.
+    /// </summary>
     [HarmonyPatch(typeof(BootstrapManager), GameConstants.BootstrapManager.OnGetLobbyData)]
     [HarmonyTranspiler]
     public static IEnumerable<CodeInstruction> OnGetLobbyData_Transpiler(IEnumerable<CodeInstruction> instructions)
     {
         var newInstructions = new List<CodeInstruction>(instructions);
 
-        // Update the version check.
         var getVersionOriginal = AccessTools.PropertyGetter(typeof(Application), nameof(Application.version));
         var getVersionReplacement = AccessTools.Method(typeof(GameConstants.BootstrapManager), nameof(GameConstants.BootstrapManager.GetModdedVersionString));
 
-        // Find the first call to Application.version and replace it
+        // Patch version check.
         for (var i = 0; i < newInstructions.Count; i++)
         {
             if (!newInstructions[i].Calls(getVersionOriginal)) continue;
@@ -162,22 +187,20 @@ internal static class BootstrapManagerPatches
         var getNumLobbyMembers = AccessTools.Method(typeof(SteamMatchmaking), nameof(SteamMatchmaking.GetNumLobbyMembers));
         var getLobbyMemberLimit = AccessTools.Method(typeof(SteamMatchmaking), nameof(SteamMatchmaking.GetLobbyMemberLimit));
 
+        // Patch lobby member limit check.
         for (var i = 0; i < newInstructions.Count; i++)
         {
-            // Look for the call to GetNumLobbyMembers followed by loading the hardcoded value 8
+            // Find the pattern: `GetNumLobbyMembers()` call followed by `ldc.i4.8` (loading the number 8).
             if (!newInstructions[i].Calls(getNumLobbyMembers) || i + 1 >= newInstructions.Count || newInstructions[i + 1].opcode != OpCodes.Ldc_I4_8) continue;
             UnlimitedMagesPlugin.Log?.LogInfo("Patching OnGetLobbyData to use dynamic lobby limit...");
 
-            // The 'CSteamID' object is constructed and placed on the stack right before the GetNumLobbyMembers call.
-            // That call consumes it. Just need to do the same thing for the GetLobbyMemberLimit call.
-            // The instructions to create the CSteamID are at i-2 and i-1 in the original code.
+            // The original code compares the number of members to 8. We replace the '8' with a call to GetLobbyMemberLimit.
             var loadIdInstruction = newInstructions[i - 2]; // ldsfld CurrentLobbyID
             var newIdInstruction = newInstructions[i - 1]; // newobj CSteamID
 
-            // Replace 'ldc.i4.8' with the new set of instructions to get the real limit.
             newInstructions[i + 1] = new CodeInstruction(OpCodes.Call, getLobbyMemberLimit);
 
-            // Insert the instructions to create the CSteamID argument for the new call.
+            // We need to pass the lobby ID to GetLobbyMemberLimit, so we re-insert the instructions that load it.
             newInstructions.Insert(i + 1, newIdInstruction.Clone());
             newInstructions.Insert(i + 1, loadIdInstruction.Clone());
 
@@ -185,24 +208,20 @@ internal static class BootstrapManagerPatches
             break; // We've made the change, so the search stops.
         }
 
-        //  Patched code would be:
-        // IL_xxxx: ldsfld       unsigned int64 BootstrapManager::CurrentLobbyID
-        // IL_xxxx: newobj       instance void [com.rlabrecque.steamworks.net]Steamworks.CSteamID::.ctor(unsigned int64)
-        // IL_xxxx: call         int32 [com.rlabrecque.steamworks.net]SteamMatchmaking::GetLobbyMemberLimit(...)
         return newInstructions;
     }
 
-    #endregion
-
-    #region Helpers
-
+    /// <summary>
+    ///     A custom coroutine that safely tears down networking and voice communication systems before changing scenes.
+    ///     This prevents lingering connections and errors when returning to the main menu.
+    /// </summary>
     private static IEnumerator CustomChangeSceneAfterCleanup(string sceneName)
     {
-        // Mirror the dissonance cleanup process as present in the original code.
+        // Stop Dissonance voice chat services.
         var dissonanceFishNet = Object.FindFirstObjectByType<DissonanceFishNetComms>();
         if (dissonanceFishNet != null)
         {
-            var stopitMethod = AccessTools.Method(typeof(DissonanceFishNetComms), "stopit");
+            var stopitMethod = AccessTools.Method(typeof(DissonanceFishNetComms), GameConstants.Dissonance.StopItMethod);
             if (stopitMethod != null)
             {
                 UnlimitedMagesPlugin.Log?.LogInfo("Calling stopit() on DissonanceFishNetComms.");
@@ -216,7 +235,6 @@ internal static class BootstrapManagerPatches
 
         yield return null;
 
-        // Destroy the main DissonanceComms object
         var dissonanceComms = Object.FindFirstObjectByType<DissonanceComms>();
         if (dissonanceComms != null)
         {
@@ -224,6 +242,7 @@ internal static class BootstrapManagerPatches
             Object.Destroy(dissonanceComms.gameObject);
         }
 
+        // Stop FishNet networking services.
         var networkManager = Object.FindFirstObjectByType<NetworkManager>();
         var fishySteamworks = Object.FindFirstObjectByType<FishySteamworks.FishySteamworks>();
 
@@ -247,6 +266,7 @@ internal static class BootstrapManagerPatches
 
         yield return new WaitForSeconds(0.5f);
 
+        // Final cleanup and scene load.
         GameObject[] playbackPrefabs = GameObject.FindGameObjectsWithTag("playbackprefab");
         foreach (var prefab in playbackPrefabs) Object.Destroy(prefab);
 
@@ -260,6 +280,10 @@ internal static class BootstrapManagerPatches
         AccessTools.Field(typeof(BootstrapManager), GameConstants.BootstrapManager.HasLeaveGameFinishedField).SetValue(BootstrapManager.instance, true);
     }
 
+    /// <summary>
+    ///     A transpiler helper that modifies IL instructions to allow lobbies of any size to be visible in the server list.
+    ///     It achieves this by duplicating the result of `GetLobbyMemberLimit`, making the comparison `limit <= limit`, which is always true.
+    /// </summary>
     private static IEnumerable<CodeInstruction> TranspileAllowAnyTeamSize(IEnumerable<CodeInstruction> instructions)
     {
         var newInstructions = new List<CodeInstruction>(instructions);
@@ -267,24 +291,48 @@ internal static class BootstrapManagerPatches
 
         for (var i = 0; i < newInstructions.Count; i++)
         {
-            // Look for the pattern where the game checks the lobby limit against the hardcoded 8:
-            // CALL SteamMatchmaking.GetLobbyMemberLimit, LDC_I4_8
+            // Find the pattern: `GetLobbyMemberLimit()` call followed by `ldc.i4.8` (loading the number 8).
             if (!newInstructions[i].Calls(getLobbyMemberLimit) || i + 1 >= newInstructions.Count || newInstructions[i + 1].opcode != OpCodes.Ldc_I4_8) continue;
             UnlimitedMagesPlugin.Log?.LogInfo("Patching OnGetLobbyList to allow visibility of all lobby sizes...");
 
-            // Replace LDC_I4_8 (load the constant 8) with DUP (Duplicate the top stack value).
-            // The value from GetLobbyMemberLimit is already on the stack.
-            // The equality check will now compare (Limit == Limit), which always passes for non-DM searches.
+            // Replaces `ldc.i4.8` with `dup`, which duplicates the value on top of the stack (the member limit).
+            // This effectively changes the check from `current_players <= 8` to `current_players <= member_limit`.
             newInstructions[i + 1] = new CodeInstruction(OpCodes.Dup);
-
             UnlimitedMagesPlugin.Log?.LogInfo("Successfully patched OnGetLobbyList.");
-            // Break here because only the check for == 8 (CTF) needs modification, not the check for == 2 (DM).
             break;
         }
 
         return newInstructions;
     }
 
+    /// <summary>
+    ///     Prefixes the lobby chat update callback to detect when a player leaves the lobby.
+    ///     When a leave event occurs, the player is removed from the custom lobby state manager.
+    /// </summary>
+    [HarmonyPatch(GameConstants.BootstrapManager.OnLobbyChatUpdateMethod)]
+    [HarmonyPrefix]
+    public static void OnLobbyChatUpdate_Prefix(LobbyChatUpdate_t callback)
+    {
+        var stateChange = (EChatMemberStateChange)callback.m_rgfChatMemberStateChange;
+
+        // Check if the update is a leave, disconnect, kick, or ban event.
+        var isLeaveEvent = (stateChange & (EChatMemberStateChange.k_EChatMemberStateChangeLeft |
+                                           EChatMemberStateChange.k_EChatMemberStateChangeDisconnected |
+                                           EChatMemberStateChange.k_EChatMemberStateChangeKicked |
+                                           EChatMemberStateChange.k_EChatMemberStateChangeBanned)) != 0;
+
+        if (!isLeaveEvent || LobbyStateManager.Instance == null) return;
+
+        // Remove the player from our internal tracking.
+        var steamIdUserChanged = new CSteamID(callback.m_ulSteamIDUserChanged);
+        LobbyStateManager.Instance.RemovePlayerBySteamId(steamIdUserChanged.ToString());
+    }
+
+    /// <summary>
+    ///     A generic transpiler helper to replace a hardcoded team size (4 or 8) with a call to get the configured team size.
+    /// </summary>
+    /// <param name="instructions">The original IL instructions.</param>
+    /// <param name="multiplyByTeams">If true, multiplies the team size by the number of teams to get the total lobby size.</param>
     private static IEnumerable<CodeInstruction> TranspileGetTeamSize(IEnumerable<CodeInstruction> instructions, bool multiplyByTeams)
     {
         var newInstructions = new List<CodeInstruction>(instructions);
@@ -296,8 +344,10 @@ internal static class BootstrapManagerPatches
         {
             if (newInstructions[i].opcode != targetOpcode) continue;
 
+            // Replace the hardcoded integer load with a call to our dynamic property.
             newInstructions[i] = new CodeInstruction(OpCodes.Call, getSelectedTeamSize);
 
+            // If required, also insert instructions to multiply by the number of teams.
             if (!multiplyByTeams) continue;
 
             newInstructions.Insert(i + 1, new CodeInstruction(OpCodes.Ldc_I4, GameConstants.Game.NumTeams));
@@ -306,6 +356,4 @@ internal static class BootstrapManagerPatches
 
         return newInstructions;
     }
-
-    #endregion
 }

@@ -1,175 +1,37 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Reflection.Emit;
 using HarmonyLib;
-using UnityEngine;
-using UnityEngine.UI;
 using UnlimitedMages.System.Components;
-using UnlimitedMages.System.Events;
-using UnlimitedMages.System.Events.Types;
+using UnlimitedMages.UI;
+using UnlimitedMages.UI.Popup;
 using UnlimitedMages.Utilities;
-using Object = UnityEngine.Object;
 
 namespace UnlimitedMages.Patches;
 
+/// <summary>
+///     Contains Harmony patches for the <see cref="MainMenuManager" /> class.
+///     These patches handle lobby UI, player synchronization, map selection logic, and game start validation.
+/// </summary>
 [HarmonyPatch(typeof(MainMenuManager))]
 internal static class MainMenuManagerPatches
 {
-    private static bool _isLobbyUiReady;
-    private static readonly List<(string name, string rank, string steamId)> PendingPlayers = new();
-    private static Coroutine? _timeoutCoroutine;
-
-    [HarmonyPatch(GameConstants.MainMenuManager.StartMethod)]
+    /// <summary>
+    ///     Postfixes the Start method to initialize connections between the mod's UI/State managers and the MainMenuManager instance.
+    /// </summary>
     [HarmonyPostfix]
+    [HarmonyPatch(GameConstants.MainMenuManager.StartMethod)]
     public static void Start_Postfix(MainMenuManager __instance)
     {
-        _isLobbyUiReady = false;
-        PendingPlayers.Clear();
+        if (LobbyStateManager.Instance != null) LobbyStateManager.Instance.SetMainMenuManager(__instance);
 
-        // Ensure we don't double-subscribe if this object is reused without a scene change.
-        EventBus.Unsubscribe<ConfigReadyEvent>(OnConfigReady_ResizeLobbyUI);
-        EventBus.Subscribe<ConfigReadyEvent>(OnConfigReady_ResizeLobbyUI);
-
-        if (_timeoutCoroutine != null) __instance.StopCoroutine(_timeoutCoroutine);
-
-        _timeoutCoroutine = __instance.StartCoroutine(LobbyUiTimeoutCoroutine());
+        if (ModUIManager.Instance?.LobbyUiHost != null) ModUIManager.Instance.LobbyUiHost.SetActive(true);
     }
 
-    private static IEnumerator LobbyUiTimeoutCoroutine()
-    {
-        yield return new WaitForSeconds(15f);
-
-        if (_isLobbyUiReady) yield break;
-        UnlimitedMagesPlugin.Log?.LogWarning("Timed out waiting for host config. Building UI with default size to prevent deadlock.");
-
-        // Manually fire a config ready event with the default size
-        OnConfigReady_ResizeLobbyUI(new ConfigReadyEvent(GameConstants.Game.OriginalTeamSize));
-    }
-
-    private static void OnConfigReady_ResizeLobbyUI(ConfigReadyEvent evt)
-    {
-        var instance = Object.FindFirstObjectByType<MainMenuManager>();
-        if (instance == null || _isLobbyUiReady) return;
-
-        var teamSize = evt.TeamSize;
-        UnlimitedMagesPlugin.Log?.LogInfo($"Received team size {teamSize}. Resizing lobby UI elements...");
-
-        var newLobbySize = teamSize * GameConstants.Game.NumTeams;
-
-        AccessTools.Field(typeof(MainMenuManager), GameConstants.MainMenuManager.BodiesField)
-            .SetValue(instance, new GameObject[newLobbySize]);
-        AccessTools.Field(typeof(MainMenuManager), GameConstants.MainMenuManager.PlayerNamesField)
-            .SetValue(instance, new string[newLobbySize]);
-        AccessTools.Field(typeof(MainMenuManager), GameConstants.MainMenuManager.PlayerLevelAndRanksField)
-            .SetValue(instance, new string[newLobbySize]);
-
-        ResizeUiList(ref instance.team1, teamSize);
-        ResizeUiList(ref instance.team2, teamSize);
-        ResizeUiList(ref instance.team1rankandleveltext, teamSize);
-        ResizeUiList(ref instance.team2rankandleveltext, teamSize);
-        ResizeUiList(ref instance.texts, newLobbySize * 2);
-        ResizeUiList(ref instance.rankandleveltext, newLobbySize);
-        ResizeAndWrapHats(ref instance.hats, newLobbySize);
-
-        _isLobbyUiReady = true;
-
-        UnlimitedMagesPlugin.Log?.LogInfo($"Processing {PendingPlayers.Count} pending players...");
-        foreach (var player in PendingPlayers) instance.SyncHats(player.name, player.rank, player.steamId);
-
-        PendingPlayers.Clear();
-    }
-
-    private static void ResizeUiList(ref Text[] array, int newSize)
-    {
-        if (array.Length >= newSize) return;
-        if (array.Length < 1) return;
-
-        var originalLength = array.Length;
-        var newArray = new Text[newSize];
-        Array.Copy(array, newArray, originalLength);
-
-        var template = array[0];
-        var parent = template.transform.parent;
-        if (parent == null) return;
-
-        for (var i = originalLength; i < newSize; i++)
-        {
-            var newUiElement = Object.Instantiate(template, parent);
-            newUiElement.name = $"{template.name}_Clone_{i}";
-            newUiElement.text = "";
-            newArray[i] = newUiElement;
-        }
-
-        array = newArray;
-
-        if (array.Length <= 0) return;
-
-        var originalTeamSizeForLayout = GameConstants.Game.OriginalTeamSize;
-        var originalOffset = array.Length > 1
-            ? array[1].transform.localPosition - array[0].transform.localPosition
-            : new Vector3(0, -35f, 0);
-
-        var scaleFactor = Mathf.Clamp((float)originalTeamSizeForLayout / newSize, 0.5f, 1.0f);
-        var newOffset = originalOffset * scaleFactor;
-        var basePosition = array[0].transform.localPosition;
-
-        for (var i = 0; i < array.Length; i++)
-        {
-            var shouldBeActive = i < newSize;
-            array[i].gameObject.SetActive(shouldBeActive);
-
-            if (!shouldBeActive) continue;
-
-            array[i].transform.localPosition = basePosition + newOffset * i;
-            array[i].transform.localScale = Vector3.one * scaleFactor;
-        }
-    }
-
-    private static void ResizeAndWrapHats(ref GameObject[] array, int newSize)
-    {
-        if (array.Length >= newSize)
-        {
-            for (var i = 0; i < array.Length; i++)
-                array[i].SetActive(i < newSize);
-            return;
-        }
-
-        if (array.Length < 1) return;
-        var originalLength = array.Length;
-        var newArray = new GameObject[newSize];
-        Array.Copy(array, newArray, originalLength);
-
-        var template = array[0];
-        var parent = template.transform.parent;
-        if (parent == null) return;
-
-        var horizontalOffset = array.Length > 1
-            ? array[1].transform.position - array[0].transform.position
-            : Vector3.zero;
-        var verticalOffset = new Vector3(0, horizontalOffset.magnitude * 2.5f, 0);
-
-        for (var i = originalLength; i < newSize; i++)
-        {
-            var column = i % GameConstants.Game.OriginalTeamSize;
-            var row = i / GameConstants.Game.OriginalTeamSize;
-            var basePosition = array[column].transform.position;
-
-            var newHat = Object.Instantiate(template, parent);
-            newHat.name = $"{template.name}_Clone_{i}";
-            var finalPosition = basePosition + verticalOffset * row;
-            if (row % 2 != 0) finalPosition += horizontalOffset * 0.5f;
-
-            newHat.transform.position = finalPosition;
-            newArray[i] = newHat;
-        }
-
-        array = newArray;
-
-        for (var i = 0; i < array.Length; i++)
-            array[i].SetActive(i < newSize);
-    }
-
+    /// <summary>
+    ///     Transpiles map selection methods (SmallMap, LargeMap) to replace the hardcoded player count
+    ///     check with a dynamic value based on the configured team size.
+    /// </summary>
     [HarmonyPatch(nameof(MainMenuManager.SmallMap))]
     [HarmonyPatch(nameof(MainMenuManager.LargeMap))]
     [HarmonyTranspiler]
@@ -182,8 +44,10 @@ internal static class MainMenuManagerPatches
 
         for (var i = 0; i < newInstructions.Count; i++)
         {
+            // Find the hardcoded lobby size (8) and replace it.
             if (newInstructions[i].opcode != OpCodes.Ldc_I4_8) continue;
 
+            // Replace with instructions to get TeamSize * NumTeams.
             newInstructions[i] = new CodeInstruction(OpCodes.Call, getInstance);
             newInstructions.Insert(i + 1, new CodeInstruction(OpCodes.Callvirt, getTeamSize));
             newInstructions.Insert(i + 2, new CodeInstruction(OpCodes.Ldc_I4, GameConstants.Game.NumTeams));
@@ -193,23 +57,29 @@ internal static class MainMenuManagerPatches
         return newInstructions;
     }
 
-    [HarmonyPatch(GameConstants.MainMenuManager.SyncHatsMethod)]
+    /// <summary>
+    ///     Prefixes the SyncHats method, which is used by the game to broadcast player join information.
+    ///     The original method is prevented, and the data is instead routed to the custom <see cref="LobbyStateManager" />.
+    /// </summary>
     [HarmonyPrefix]
+    [HarmonyPatch(GameConstants.MainMenuManager.SyncHatsMethod)]
     public static bool SyncHats_Prefix(string PlayerName, string PlayerRank, string steamid)
     {
-        if (_isLobbyUiReady)
-            return true; // UI is ready, proceed to original method.
-
-        PendingPlayers.Add((PlayerName, PlayerRank, steamid));
-        return false; // UI not ready, queue the player and skip original method.
+        LobbyStateManager.Instance?.AddPlayer(PlayerName, PlayerRank, steamid);
+        return false; // Prevent original method execution.
     }
 
-    [HarmonyPatch(GameConstants.MainMenuManager.SyncHatsMethod)]
+    /// <summary>
+    ///     Transpiles the SyncHats method to fix an issue where the player name was not properly clamped
+    ///     before being used as a dictionary key, which is handled by the original, now-bypassed method.
+    ///     This patch is largely for compatibility, as the prefix already handles the core logic.
+    /// </summary>
     [HarmonyTranspiler]
+    [HarmonyPatch(GameConstants.MainMenuManager.SyncHatsMethod)]
     public static IEnumerable<CodeInstruction> SyncHats_Transpiler(IEnumerable<CodeInstruction> instructions)
     {
         var newInstructions = new List<CodeInstruction>(instructions);
-        var addToDictMethod = AccessTools.Method(typeof(KickPlayersHolder), "AddToDict");
+        var addToDictMethod = AccessTools.Method(typeof(KickPlayersHolder), GameConstants.KickPlayersHolder.AddToDictMethod);
         var clampStringMethod = AccessTools.Method(typeof(MainMenuManager), GameConstants.MainMenuManager.ClampStringMethod);
 
         for (var i = 0; i < newInstructions.Count; i++)
@@ -218,12 +88,13 @@ internal static class MainMenuManagerPatches
 
             var instructionsToInsert = new List<CodeInstruction>
             {
-                new(OpCodes.Ldarg_0),
-                new(OpCodes.Ldarg_1),
+                new(OpCodes.Ldarg_0), // `this` (MainMenuManager instance)
+                new(OpCodes.Ldarg_1), // `PlayerName` argument
                 new(OpCodes.Ldc_I4, GameConstants.MainMenuManager.PlayerNameClampLength),
                 new(OpCodes.Call, clampStringMethod)
             };
 
+            // Replace the original 'ldarg.1' with the block that calls ClampString.
             newInstructions.RemoveAt(i - 2);
             newInstructions.InsertRange(i - 2, instructionsToInsert);
             break;
@@ -232,16 +103,75 @@ internal static class MainMenuManagerPatches
         return newInstructions;
     }
 
-    [HarmonyPatch(GameConstants.MainMenuManager.RemoveHatMethod)]
+    /// <summary>
+    ///     Postfixes the RemoveHat method, which is used by the game when a player leaves.
+    ///     This ensures the player is also removed from the custom <see cref="LobbyStateManager" />.
+    /// </summary>
     [HarmonyPostfix]
+    [HarmonyPatch(GameConstants.MainMenuManager.RemoveHatMethod)]
     public static void RemoveHat_Postfix(MainMenuManager __instance, string PlayerName)
     {
         var clampStringMethod = AccessTools.Method(typeof(MainMenuManager), GameConstants.MainMenuManager.ClampStringMethod);
         var clampedName = (string)clampStringMethod.Invoke(__instance, [PlayerName, GameConstants.MainMenuManager.PlayerNameClampLength]);
 
-        var kickDictionaryField = AccessTools.Field(typeof(KickPlayersHolder), "nametosteamid");
+        LobbyStateManager.Instance?.RemovePlayer(clampedName);
+
+        // Also clean up the game's internal kick dictionary to prevent issues.
+        var kickDictionaryField = AccessTools.Field(typeof(KickPlayersHolder), GameConstants.KickPlayersHolder.NameToSteamIdField);
         var kickDictionary = (Dictionary<string, string>)kickDictionaryField.GetValue(__instance.kickplayershold);
 
         if (kickDictionary != null && kickDictionary.ContainsKey(clampedName)) kickDictionary.Remove(clampedName);
+    }
+
+    /// <summary>
+    ///     Prefixes the game start method to add a "ready check".
+    ///     If the host tries to start while players are not marked as ready, a confirmation popup is shown.
+    /// </summary>
+    [HarmonyPrefix]
+    [HarmonyPatch(nameof(MainMenuManager.ActuallyStartGame))]
+    public static bool ActuallyStartGame_Prefix(MainMenuManager __instance)
+    {
+        var stateManager = LobbyStateManager.Instance;
+        var uiManager = ModUIManager.Instance;
+
+        // If not the host or managers are missing, allow the original method to run.
+        if (stateManager == null || uiManager == null || !stateManager.IsHost()) return true;
+
+        // If all players are ready, allow the game to start.
+        if (stateManager.AreAllPlayersReady())
+        {
+            UnlimitedMagesPlugin.Log?.LogInfo("All players are ready. Starting the game.");
+            return true;
+        }
+
+        UnlimitedMagesPlugin.Log?.LogWarning("Host attempted to start the game, but not all players are ready. Displaying confirmation popup.");
+
+        // Configure and show a popup asking the host to confirm.
+        var title = "Players Not Ready";
+        var message = "One or more players have not marked themselves as ready.\n\n" +
+                      "Do you want to force the game to start anyway?";
+
+        Action<PopupButton> onButtonClicked = buttonType =>
+        {
+            if (buttonType == PopupButton.Ok) // Corresponds to the "START" button.
+            {
+                UnlimitedMagesPlugin.Log?.LogInfo("Host chose to force start the game.");
+                __instance.mmmn.ActuallyStartGame(); // Manually call the networked start method.
+            }
+            else // Corresponds to the "WAIT" button.
+            {
+                UnlimitedMagesPlugin.Log?.LogInfo("Host chose to wait for players to ready up.");
+            }
+        };
+
+        var buttons = new[]
+        {
+            new PopupButtonData(PopupButton.Ok, "START"),
+            new PopupButtonData(PopupButton.Warning, "WAIT")
+        };
+
+        uiManager.ShowPopup(title, message, onButtonClicked, buttons);
+
+        return false; // Prevent the original method from running.
     }
 }
