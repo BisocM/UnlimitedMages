@@ -3,13 +3,14 @@
 namespace UnlimitedMages.Components;
 
 /// <summary>
-///     Defines the contract for a component that can be automatically
-///     discovered and injected into the game's persistent manager.
+///     Defines the contract for a modular component of the mod.
+///     Components implementing this interface will be automatically discovered and initialized.
 /// </summary>
 internal interface IModComponent
 {
     /// <summary>
-    ///     Initializes the component with necessary dependencies.
+    ///     Initializes the component, setting up its state and any required hooks.
     /// </summary>
+    /// <param name="log">The logger instance provided for this component.</param>
     void Initialize(ManualLogSource log);
 }

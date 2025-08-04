@@ -9,8 +9,11 @@ using UnlimitedMages.System.Events;
 using UnlimitedMages.System.Events.Types;
 using UnlimitedMages.Utilities;
 
-namespace UnlimitedMages.UI;
+namespace UnlimitedMages.UI.Lobby;
 
+/// <summary>
+///     A helper component to track if a slider is currently being manipulated by the user.
+/// </summary>
 internal class SliderInteractionHelper : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
 {
     public bool IsBeingDragged { get; private set; }
@@ -18,23 +21,34 @@ internal class SliderInteractionHelper : MonoBehaviour, IPointerDownHandler, IPo
     public void OnPointerUp(PointerEventData eventData) => IsBeingDragged = false;
 }
 
+/// <summary>
+///     Manages the custom UI slider for selecting the team size.
+///     It creates the slider GameObject and handles its visibility and value changes.
+/// </summary>
 internal sealed class UnlimitedMagesSlider : MonoBehaviour, IModComponent
 {
-    private const string TargetPanelName = "CreateLobbyMenu";
-    private bool _isReady;
+    private const string CreateLobbyPanelName = "CreateLobbyMenu";
     private SliderInteractionHelper? _sliderHelper;
     private TextMeshProUGUI? _sliderLabel;
+
     private Slider? _teamSizeSlider;
 
+    /// <summary>
+    ///     Gets the team size currently selected on the UI slider. This value is used by the host when creating a lobby.
+    /// </summary>
     public static int SelectedTeamSize { get; private set; } = GameConstants.Game.MinimumTeamSize;
 
+    /// <summary>
+    ///     In the Update loop, checks if the "Create Lobby" panel is active and toggles the slider's visibility accordingly.
+    /// </summary>
     private void Update()
     {
-        if (!_isReady || _teamSizeSlider != null) return;
+        if (_teamSizeSlider == null) return;
 
-        var panelObject = GameObject.Find(TargetPanelName);
-        if (panelObject != null && panelObject.activeInHierarchy)
-            AddSliderToPanel(panelObject.transform);
+        var createLobbyPanel = GameObject.Find(CreateLobbyPanelName);
+        var shouldBeActive = createLobbyPanel != null && createLobbyPanel.activeInHierarchy;
+
+        if (_teamSizeSlider.gameObject.activeSelf != shouldBeActive) _teamSizeSlider.gameObject.SetActive(shouldBeActive);
     }
 
     private void OnDestroy()
@@ -44,52 +58,42 @@ internal sealed class UnlimitedMagesSlider : MonoBehaviour, IModComponent
 
     public void Initialize(ManualLogSource log)
     {
-        _isReady = true;
+        if (ModUIManager.Instance?.CanvasRoot == null)
+        {
+            log.LogError("ModUIManager is not ready. Cannot create the team size slider.");
+            return;
+        }
 
+        CreateSliderObject(ModUIManager.Instance.CanvasRoot.transform, log);
         EventBus.Subscribe<ConfigReadyEvent>(OnConfigReady_UpdateSlider);
+        log.LogInfo("Team size slider initialized and parented to custom UI canvas.");
     }
 
-    private void AddSliderToPanel(Transform panelTransform)
+    /// <summary>
+    ///     Programmatically creates the slider GameObject and all its child components (Fill, Handle, Label).
+    /// </summary>
+    private void CreateSliderObject(Transform parent, ManualLogSource log)
     {
-        if (panelTransform.Find("LobbySizeSlider") != null) return;
-        UnlimitedMagesPlugin.Log?.LogInfo($"Injecting team size slider into '{panelTransform.name}'.");
+        if (parent.Find("LobbySizeSlider") != null) return;
+        log.LogInfo($"Injecting team size slider into '{parent.name}'.");
 
         var bgColor = new Color(0.1f, 0.1f, 0.15f, 0.8f);
         var fillColor = new Color(0.3f, 0.65f, 1.0f, 0.9f);
         var handleColor = new Color(0.9f, 0.9f, 0.9f, 1f);
 
         var sliderObj = new GameObject("LobbySizeSlider");
-        sliderObj.transform.SetParent(panelTransform, false);
+        sliderObj.transform.SetParent(parent, false);
 
         _teamSizeSlider = sliderObj.AddComponent<Slider>();
         _sliderHelper = sliderObj.AddComponent<SliderInteractionHelper>();
-
-        var bgImage = sliderObj.AddComponent<Image>();
-        bgImage.color = bgColor;
+        sliderObj.AddComponent<Image>().color = bgColor;
 
         var rect = sliderObj.GetComponent<RectTransform>();
         rect.anchorMin = new Vector2(0.5f, 0.5f);
         rect.anchorMax = new Vector2(0.5f, 0.5f);
         rect.pivot = new Vector2(0.5f, 0.5f);
         rect.sizeDelta = new Vector2(300, 25);
-
-        var createLobbyButton = panelTransform.Find("CreateLobby");
-        var backButton = panelTransform.Find("back (1)");
-        if (createLobbyButton != null && backButton != null)
-        {
-            var createLobbyRect = createLobbyButton.GetComponent<RectTransform>();
-            var backButtonRect = backButton.GetComponent<RectTransform>();
-            var sliderPosition = createLobbyRect.anchoredPosition;
-            var verticalShift = -80f;
-            createLobbyRect.anchoredPosition += new Vector2(0, verticalShift);
-            backButtonRect.anchoredPosition += new Vector2(0, verticalShift);
-            rect.anchoredPosition = sliderPosition;
-        }
-        else
-        {
-            UnlimitedMagesPlugin.Log?.LogError("Could not find 'CreateLobby' or 'back (1)' buttons. Slider will be placed at a default position.");
-            rect.anchoredPosition = new Vector2(0, -100);
-        }
+        rect.anchoredPosition = new Vector2(0, -20); // Center-aligned, slightly below center
 
         var fill = new GameObject("Fill");
         fill.transform.SetParent(rect, false);
@@ -116,7 +120,10 @@ internal sealed class UnlimitedMagesSlider : MonoBehaviour, IModComponent
         _sliderLabel.color = Color.white;
         _sliderLabel.alignment = TextAlignmentOptions.Center;
         var labelRect = textObj.GetComponent<RectTransform>();
-        labelRect.anchoredPosition = new Vector2(0, 30);
+        labelRect.anchorMin = new Vector2(0.5f, 1);
+        labelRect.anchorMax = new Vector2(0.5f, 1);
+        labelRect.pivot = new Vector2(0.5f, 0);
+        labelRect.anchoredPosition = new Vector2(0, 5);
         labelRect.sizeDelta = new Vector2(300, 30);
 
         _teamSizeSlider.direction = Slider.Direction.LeftToRight;
@@ -126,16 +133,20 @@ internal sealed class UnlimitedMagesSlider : MonoBehaviour, IModComponent
         _teamSizeSlider.value = SelectedTeamSize;
         UpdateSliderDisplay((int)_teamSizeSlider.value);
         _teamSizeSlider.onValueChanged.AddListener(OnSliderValueChanged);
+
+        sliderObj.SetActive(false);
     }
 
+    /// <summary>
+    ///     Callback for when the slider's value changes. Updates the static property and fires an event if the host changes the value.
+    /// </summary>
     private void OnSliderValueChanged(float value)
     {
         var intValue = (int)value;
         UpdateSliderDisplay(intValue);
-
         SelectedTeamSize = intValue;
 
-        // Publish an event for other systems to consume, rather than calling them directly.
+        // If the host changes the value, publish an event so the SessionManager can broadcast it.
         if (ConfigManager.Instance is { IsConfigReady: true })
             EventBus.Publish(new HostTeamSizeChangedEvent(intValue));
     }
@@ -146,8 +157,13 @@ internal sealed class UnlimitedMagesSlider : MonoBehaviour, IModComponent
             _sliderLabel.text = $"Team Size: {value} vs {value}";
     }
 
+    /// <summary>
+    ///     Event handler to update the slider's visual state when a configuration is received from the network.
+    ///     This keeps the UI in sync for all players.
+    /// </summary>
     private void OnConfigReady_UpdateSlider(ConfigReadyEvent evt)
     {
+        // Don't update if the user is currently dragging the slider, to avoid fighting for control.
         if (_sliderLabel == null || _teamSizeSlider == null || (_sliderHelper != null && _sliderHelper.IsBeingDragged)) return;
 
         UpdateSliderDisplay(evt.TeamSize);

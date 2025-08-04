@@ -3,13 +3,14 @@
 namespace UnlimitedMages.System.Attributes;
 
 /// <summary>
-///     Specifies the compatible game versions for the BepInEx plugin.
-///     This attribute is intended to be used on classes inheriting from BaseUnityPlugin.
-///     <param name="compatibleVersions">A list of compatible game version strings (e.g., "0.7.6").</param>
+///     An attribute to specify which versions of the game this mod is compatible with.
+///     Used by the <see cref="Components.CompatibilityChecker" /> to warn users of potential issues.
 /// </summary>
-// AttributeUsage is restricted to Class targets.
 [AttributeUsage(AttributeTargets.Class, Inherited = false)]
 internal class GameVersionCompatibilityAttribute(params string[] compatibleVersions) : Attribute
 {
+    /// <summary>
+    ///     Gets the array of game version strings that the mod is marked as compatible with.
+    /// </summary>
     public string[] CompatibleVersions { get; } = compatibleVersions;
 }

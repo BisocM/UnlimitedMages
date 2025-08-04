@@ -2,8 +2,7 @@
 
 namespace UnlimitedMages;
 
-//TODO: Temporarily pulled out due to compatibility issues. Will need to investigate.
-//[BepInDependency("com.magearena.modsync")] // Hard dependency on ModSync - requires all players in the lobby to have it installed.
+[BepInDependency("com.magearena.modsync")] // Hard dependency on ModSync - requires all players in the lobby to have it installed.
 public partial class UnlimitedMagesPlugin
 {
     #region Cross-Mod Compatibility
@@ -21,7 +20,7 @@ public partial class UnlimitedMagesPlugin
     /// <summary>
     ///     Publicly accessible mod version.
     /// </summary>
-    public const string ModVersion = "2.0.0";
+    public const string ModVersion = "2.1.0";
 
     /// <summary>
     ///     The mod's display name.

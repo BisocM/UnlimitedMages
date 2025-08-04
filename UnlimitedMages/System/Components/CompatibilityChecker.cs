@@ -5,10 +5,15 @@ using BepInEx.Logging;
 using UnityEngine;
 using UnlimitedMages.Components;
 using UnlimitedMages.System.Attributes;
+using UnlimitedMages.UI;
 using UnlimitedMages.UI.Popup;
 
 namespace UnlimitedMages.System.Components;
 
+/// <summary>
+///     A mod component that checks if the current game version is compatible with the mod.
+///     It reads the <see cref="GameVersionCompatibilityAttribute" /> from the plugin's main class.
+/// </summary>
 internal sealed class CompatibilityChecker : MonoBehaviour, IModComponent
 {
     private static bool IsVerified { get; set; }
@@ -30,6 +35,7 @@ internal sealed class CompatibilityChecker : MonoBehaviour, IModComponent
             return;
         }
 
+        // Find the compatibility and plugin info attributes on the main plugin class.
         var attribute = pluginType.GetCustomAttribute<GameVersionCompatibilityAttribute>();
         var pluginInfo = pluginType.GetCustomAttribute<BepInPlugin>();
 
@@ -43,6 +49,9 @@ internal sealed class CompatibilityChecker : MonoBehaviour, IModComponent
         PerformCheck(log, attribute, pluginInfo.Name);
     }
 
+    /// <summary>
+    ///     Performs the actual version check and logs a warning or shows a popup if an incompatibility is detected.
+    /// </summary>
     private void PerformCheck(ManualLogSource log, GameVersionCompatibilityAttribute attribute, string modName)
     {
         var currentGameVersion = Application.version;
@@ -66,15 +75,18 @@ internal sealed class CompatibilityChecker : MonoBehaviour, IModComponent
         IsVerified = true;
     }
 
+    /// <summary>
+    ///     Displays an in-game popup to the user, alerting them of the version mismatch.
+    /// </summary>
     private void ShowIncompatibilityAlert(string modName, string currentVersion, string[] compatibleVersions)
     {
         var title = "Mod Compatibility Warning";
         var message = $"The mod <b>{modName}</b> has not been marked as compatible with your current game version.\n\n" +
-                      $"<b>Your Version:</b>\n<size=18>{currentVersion}</size>\n\n" +
-                      $"<b>Compatible Versions:</b>\n<size=18>{string.Join(", ", compatibleVersions)}</size>\n\n" +
+                      $"<b>Your Version:</b>\n<size=20>{currentVersion}</size>\n\n" +
+                      $"<b>Compatible Versions:</b>\n<size=20>{string.Join(", ", compatibleVersions)}</size>\n\n" +
                       $"<color=yellow>Using an incompatible version may cause issues. Proceed with caution.</color>\n" +
-                      $"<size=12><color=grey>If you observe any bugs - please report them in the Modding Discord or using the GitHub Issues!</color></size>";
+                      $"<size=12><color=grey>If you observe any bugs, please report them in the Modding Discord or on GitHub!</color></size>";
 
-        UnlimitedMagesPopup.Show(title, message, _ => { }, new PopupButtonData(PopupButton.Warning, "OK"));
+        ModUIManager.Instance?.ShowPopup(title, message, _ => { }, new PopupButtonData(PopupButton.Warning, "OK"));
     }
 }
