@@ -1,7 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Reflection.Emit;
 using HarmonyLib;
+using UnityEngine;
 using UnlimitedMages.System.Components;
 using UnlimitedMages.UI;
 using UnlimitedMages.UI.Popup;
@@ -122,6 +122,14 @@ internal static class MainMenuManagerPatches
 
         if (kickDictionary != null && kickDictionary.ContainsKey(clampedName)) kickDictionary.Remove(clampedName);
     }
+    
+    [HarmonyPrefix]
+    [HarmonyPatch(nameof(MainMenuManager.ChangeTeamText))]
+    public static bool ChangeTeamText_Prefix() => false;
+
+    [HarmonyPrefix]
+    [HarmonyPatch(nameof(MainMenuManager.DestroySpinningGuy))]
+    public static bool DestroySpinningGuy_Prefix() => false;
 
     /// <summary>
     ///     Prefixes the game start method to add a "ready check".
@@ -151,7 +159,17 @@ internal static class MainMenuManagerPatches
         var message = "One or more players have not marked themselves as ready.\n\n" +
                       "Do you want to force the game to start anyway?";
 
-        Action<PopupButton> onButtonClicked = buttonType =>
+        var buttons = new[]
+        {
+            new PopupButtonData(PopupButton.Ok, "START"),
+            new PopupButtonData(PopupButton.Warning, "WAIT")
+        };
+
+        uiManager.ShowPopup(title, message, OnButtonClicked, buttons);
+
+        return false; // Prevent the original method from running.
+
+        void OnButtonClicked(PopupButton buttonType)
         {
             if (buttonType == PopupButton.Ok) // Corresponds to the "START" button.
             {
@@ -162,16 +180,6 @@ internal static class MainMenuManagerPatches
             {
                 UnlimitedMagesPlugin.Log?.LogInfo("Host chose to wait for players to ready up.");
             }
-        };
-
-        var buttons = new[]
-        {
-            new PopupButtonData(PopupButton.Ok, "START"),
-            new PopupButtonData(PopupButton.Warning, "WAIT")
-        };
-
-        uiManager.ShowPopup(title, message, onButtonClicked, buttons);
-
-        return false; // Prevent the original method from running.
+        }
     }
 }

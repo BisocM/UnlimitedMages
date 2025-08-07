@@ -20,7 +20,6 @@ internal static class MainMenuManagerNetworkedPatches
 {
     // Cached reflection info for performance.
     private static readonly FieldInfo? MmmField = AccessTools.Field(typeof(MainMenuManagerNetworked), GameConstants.MainMenuManagerNetworked.MmmField);
-    private static readonly FieldInfo? LocalPlayerNameField = AccessTools.Field(typeof(MainMenuManagerNetworked), GameConstants.MainMenuManagerNetworked.LocalPlayerNameField);
     private static readonly FieldInfo? CurrentLocalTeamField = AccessTools.Field(typeof(MainMenuManagerNetworked), GameConstants.MainMenuManagerNetworked.CurrentLocalTeamField);
 
     static MainMenuManagerNetworkedPatches()
@@ -56,8 +55,8 @@ internal static class MainMenuManagerNetworkedPatches
     ///     This intercepts the call, prevents the original logic, and instead updates the mod's custom <see cref="LobbyStateManager" />.
     /// </summary>
     [HarmonyPatch(GameConstants.MainMenuManagerNetworked.ObserversJoinTeamRpc)]
-    [HarmonyPrefix]
-    public static bool ObserversJoinTeam_Logic_Prefix(MainMenuManagerNetworked __instance, string playername, int teamtojoin, int index, string lvlandrank)
+    [HarmonyPostfix]
+    public static void ObserversJoinTeam_Logic_Postfix(MainMenuManagerNetworked __instance, string playername, int teamtojoin, int index, string lvlandrank)
     {
         var isForMe = playername == SteamFriends.GetPersonaName();
 
@@ -75,8 +74,6 @@ internal static class MainMenuManagerNetworkedPatches
 
         // Update the central lobby state with the new team assignment.
         LobbyStateManager.Instance?.AssignPlayerToTeam(teamtojoin, index, playername, lvlandrank);
-
-        return false; // Prevents the original game method from executing.
     }
 
     /// <summary>
@@ -88,7 +85,7 @@ internal static class MainMenuManagerNetworkedPatches
     public static bool ObsRemoveFromTeam_Logic_Prefix(int team, int index)
     {
         LobbyStateManager.Instance?.ClearPlayerFromTeamSlot(team, index);
-        return false; // Prevents the original game method from executing.
+        return false;
     }
 
     /// <summary>

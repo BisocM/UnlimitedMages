@@ -135,6 +135,9 @@ internal static class GameConstants
 
         /// <summary>The mangled name of the `ObsRemoveFromTeam` RPC logic method.</summary>
         internal const string ObsRemoveFromTeamRpc = "RpcLogic___ObsRemoveFromTeam_1692629761";
+
+        internal const string ObserversJoinTeam = "ObserversJoinTeam";
+        internal const string ObsRemoveFromTeam = "ObsRemoveFromTeam";
     }
 
     /// <summary>

@@ -7,6 +7,7 @@ using UnlimitedMages.Components;
 using UnlimitedMages.System.Commands.Types;
 using UnlimitedMages.System.Events;
 using UnlimitedMages.System.Events.Types;
+using UnlimitedMages.System.Networking;
 using UnlimitedMages.UI.Lobby;
 using UnlimitedMages.Utilities;
 using Random = System.Random;
@@ -299,62 +300,49 @@ internal class LobbyStateManager : MonoBehaviour, IModComponent
     /// </summary>
     public void BalanceTeams()
     {
-        if (!IsHost() || _mainMenuManager?.mmmn == null)
+        if (!IsHost() || _mainMenuManager?.mmmn == null || ConfigManager.Instance == null)
         {
-            _log?.LogWarning("BalanceTeams called by non-host, or MainMenuManager components are not available.");
+            _log?.LogWarning("BalanceTeams preconditions not met (not host or managers unavailable). Aborting.");
             return;
         }
 
-        if (ConfigManager.Instance == null)
-        {
-            _log?.LogError("ConfigManager is not available. Cannot determine team size for balancing.");
-            return;
-        }
+        _log?.LogInfo("Host has initiated team balancing calculation.");
 
-        _log?.LogInfo("Host has initiated team balancing.");
-
-        // Get a shuffled list of all players to randomize team assignment.
         var playersToAssign = new List<PlayerLobbyData>(AllPlayers);
         var rng = new Random();
         var shuffledPlayers = playersToAssign.OrderBy(_ => rng.Next()).ToList();
 
         var teamSize = ConfigManager.Instance.TeamSize;
-        var team1Count = 0;
-        var team2Count = 0;
+        var team1 = new List<string>();
+        var team2 = new List<string>();
 
-        var unassignedPlayers = new List<PlayerLobbyData>(shuffledPlayers);
-
-        // Assign players one by one to the team with fewer members.
+        // Distribute players into the new team lists
         foreach (var player in shuffledPlayers)
         {
-            var preferredTeamId = team1Count <= team2Count ? 0 : 2;
-            var fallbackTeamId = preferredTeamId == 0 ? 2 : 0;
-
-            var preferredTeamCount = preferredTeamId == 0 ? team1Count : team2Count;
-            var fallbackTeamCount = fallbackTeamId == 0 ? team1Count : team2Count;
-
-            if (preferredTeamCount < teamSize)
+            // Prioritize the team with fewer players. If equal, prioritize team 1.
+            if (team1.Count < teamSize && team1.Count <= team2.Count)
             {
-                _mainMenuManager.mmmn.JoinTeam(player.FullName, preferredTeamId);
-                if (preferredTeamId == 0) team1Count++;
-                else team2Count++;
-                unassignedPlayers.Remove(player);
+                team1.Add(player.FullName);
             }
-            else if (fallbackTeamCount < teamSize)
+            else if (team2.Count < teamSize)
             {
-                _mainMenuManager.mmmn.JoinTeam(player.FullName, fallbackTeamId);
-                if (fallbackTeamId == 0) team1Count++;
-                else team2Count++;
-                unassignedPlayers.Remove(player);
+                team2.Add(player.FullName);
             }
+            // Players who don't fit are left unassigned.
         }
 
-        // Any players who couldn't be assigned (because teams were full) are moved to unassigned.
-        foreach (var player in unassignedPlayers)
+        _log?.LogInfo($"Balancing calculated. Team 1: {team1.Count}, Team 2: {team2.Count}. Sending to server...");
+
+        // Find the TeamAssignment component in the scene to call the RPC
+        var teamAssigner = FindFirstObjectByType<TeamAssignment>();
+        if (teamAssigner == null)
         {
-            _log?.LogInfo($"Balancing: Player '{player.FullName}' could not be assigned (teams full). Removing from team.");
-            _mainMenuManager.mmmn.LeftInLobby(player.FullName);
+            _log?.LogError("TeamAssignment component not found in scene. Cannot balance teams. Ensure it's injected by ComponentActivator.");
+            return;
         }
+    
+        // Call the new authoritative ServerRpc with the final team lists
+        teamAssigner.Server_ForceBalanceTeams(team1.ToArray(), team2.ToArray());
     }
 
     /// <summary>
